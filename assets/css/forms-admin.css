@@ -1,0 +1,520 @@
+/* Forms engine — modern admin UI. Scoped to Forms/Entries/Builder screens only. */
+
+.bootg-forms-wrap {
+	max-width: 1100px;
+	margin-top: 1.5rem;
+}
+
+.bootg-forms-wrap * {
+	box-sizing: border-box;
+}
+
+.bootg-forms-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 1.5rem;
+}
+
+.bootg-forms-header h1 {
+	font-size: 1.6rem;
+	font-weight: 800;
+	color: #2A1638;
+	margin: 0;
+	padding: 0;
+}
+
+.bootg-notice {
+	padding: .85rem 1.1rem;
+	border-radius: .5rem;
+	margin-bottom: 1.25rem;
+	font-size: .92rem;
+}
+
+.bootg-notice-success {
+	background: #ECFDF5;
+	color: #047857;
+	border: 1px solid #A7F3D0;
+}
+
+.bootg-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	padding: .55rem 1.1rem;
+	border-radius: .5rem;
+	font-weight: 700;
+	font-size: .85rem;
+	text-decoration: none;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.bootg-btn-primary {
+	background: #643486;
+	color: #fff;
+	box-shadow: 0 6px 16px -6px rgba(100,52,134,.5);
+}
+
+.bootg-btn-primary:hover {
+	background: #4A2364;
+	color: #fff;
+	transform: translateY(-1px);
+}
+
+.bootg-btn-lg {
+	padding: .8rem 1.75rem;
+	font-size: .95rem;
+}
+
+.bootg-btn-ghost {
+	background: #fff;
+	color: #453E4C;
+	border-color: #E2E8F0;
+}
+
+.bootg-btn-ghost:hover {
+	border-color: #643486;
+	color: #643486;
+}
+
+.bootg-btn-ghost.is-active {
+	background: #643486;
+	color: #fff;
+	border-color: #643486;
+}
+
+.bootg-btn-danger {
+	color: #DC2626;
+}
+
+.bootg-btn-danger:hover {
+	border-color: #DC2626;
+	color: #DC2626;
+	background: #FEF2F2;
+}
+
+.bootg-empty-state {
+	background: #F7F3FA;
+	border: 1px dashed #D6C7E0;
+	border-radius: .75rem;
+	padding: 3rem 2rem;
+	text-align: center;
+	color: #453E4C;
+}
+
+.bootg-empty-state p {
+	max-width: 32rem;
+	margin: 0 auto 1.25rem;
+}
+
+.bootg-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 1rem;
+}
+
+.bootg-form-card {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.25rem 1.4rem;
+	box-shadow: 0 1px 3px rgba(36,39,42,.06);
+	transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.bootg-form-card:hover {
+	box-shadow: 0 12px 28px -12px rgba(36,39,42,.18);
+	transform: translateY(-2px);
+}
+
+.bootg-form-card h2 {
+	font-size: 1.05rem;
+	margin: 0 0 .35rem;
+}
+
+.bootg-form-card h2 a {
+	color: #2A1638;
+	text-decoration: none;
+}
+
+.bootg-form-card h2 a:hover {
+	color: #643486;
+}
+
+.bootg-form-card-meta {
+	color: #718096;
+	font-size: .82rem;
+	margin: 0 0 .75rem;
+}
+
+.bootg-shortcode {
+	display: inline-block;
+	background: #F7F3FA;
+	color: #643486;
+	border: 1px solid #E4D6EE;
+	border-radius: .35rem;
+	padding: .25rem .55rem;
+	font-size: .78rem;
+	cursor: pointer;
+	user-select: all;
+}
+
+.bootg-form-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .4rem;
+	margin-top: 1rem;
+}
+
+.bootg-form-card-actions .bootg-btn {
+	padding: .4rem .8rem;
+	font-size: .78rem;
+}
+
+/* Builder */
+
+.bootg-builder-top {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 1.25rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+	align-items: flex-end;
+}
+
+.bootg-field-row {
+	display: flex;
+	flex-direction: column;
+	gap: .4rem;
+	margin-bottom: .9rem;
+}
+
+.bootg-field-row label {
+	font-size: .82rem;
+	font-weight: 700;
+	color: #453E4C;
+}
+
+.bootg-input {
+	border: 1px solid #CBD5E0;
+	border-radius: .45rem;
+	padding: .55rem .75rem;
+	font-size: .88rem;
+	min-width: 240px;
+}
+
+.bootg-input:focus {
+	outline: none;
+	border-color: #643486;
+	box-shadow: 0 0 0 3px rgba(100,52,134,.15);
+}
+
+.bootg-input-lg {
+	font-size: 1.05rem;
+	font-weight: 700;
+	min-width: 320px;
+}
+
+.bootg-hint {
+	color: #718096;
+	font-size: .85rem;
+}
+
+.bootg-builder-layout {
+	display: grid;
+	grid-template-columns: 220px 1fr;
+	gap: 1.25rem;
+	margin-bottom: 1.25rem;
+}
+
+.bootg-builder-palette {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.1rem;
+	align-self: start;
+	position: sticky;
+	top: 40px;
+}
+
+.bootg-builder-palette h3 {
+	margin: 0 0 .75rem;
+	font-size: .82rem;
+	text-transform: uppercase;
+	letter-spacing: .06em;
+	color: #718096;
+}
+
+.bootg-palette-btn {
+	display: block;
+	width: 100%;
+	text-align: left;
+	background: #F7F3FA;
+	border: 1px solid transparent;
+	border-radius: .45rem;
+	padding: .6rem .8rem;
+	font-size: .85rem;
+	font-weight: 600;
+	color: #453E4C;
+	margin-bottom: .5rem;
+	cursor: pointer;
+	transition: all .15s ease;
+}
+
+.bootg-palette-btn:hover {
+	background: #EDE1F5;
+	border-color: #D6C7E0;
+	color: #4A2364;
+}
+
+.bootg-builder-canvas {
+	background: #F7F3FA;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.1rem;
+	min-height: 220px;
+}
+
+.bootg-fields-list {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+}
+
+.bootg-field-card {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .6rem;
+	padding: 1rem 1.1rem;
+}
+
+.bootg-field-card-head {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	margin-bottom: .75rem;
+}
+
+.bootg-drag-handle {
+	cursor: grab;
+	color: #A0AEC0;
+	font-size: 1rem;
+}
+
+.bootg-field-type-badge {
+	background: #EDE1F5;
+	color: #4A2364;
+	font-size: .72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	padding: .2rem .55rem;
+	border-radius: 9999px;
+}
+
+.bootg-field-remove {
+	margin-left: auto;
+	background: none;
+	border: none;
+	color: #A0AEC0;
+	font-size: 1.2rem;
+	line-height: 1;
+	cursor: pointer;
+	padding: .1rem .4rem;
+}
+
+.bootg-field-remove:hover {
+	color: #DC2626;
+}
+
+.bootg-field-card-row {
+	display: flex;
+	flex-direction: column;
+	gap: .3rem;
+	margin-bottom: .6rem;
+}
+
+.bootg-field-card-row label {
+	font-size: .75rem;
+	font-weight: 700;
+	color: #718096;
+}
+
+.bootg-field-card .bootg-input {
+	min-width: 0;
+	width: 100%;
+}
+
+.bootg-field-placeholder-ghost {
+	background: #EDE1F5;
+	border: 2px dashed #D6C7E0;
+	border-radius: .6rem;
+	height: 60px;
+}
+
+.bootg-field-required-row {
+	margin-top: .25rem;
+}
+
+/* Toggle switch */
+
+.bootg-toggle-row {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	font-size: .85rem;
+	font-weight: 600;
+	color: #453E4C;
+	cursor: pointer;
+	margin-bottom: 1rem;
+}
+
+.bootg-toggle {
+	position: relative;
+	display: inline-block;
+	width: 38px;
+	height: 21px;
+	flex-shrink: 0;
+}
+
+.bootg-toggle input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.bootg-toggle-slider {
+	position: absolute;
+	inset: 0;
+	background: #CBD5E0;
+	border-radius: 9999px;
+	transition: background-color .2s ease;
+}
+
+.bootg-toggle-slider::before {
+	content: "";
+	position: absolute;
+	width: 15px;
+	height: 15px;
+	left: 3px;
+	top: 3px;
+	background: #fff;
+	border-radius: 50%;
+	transition: transform .2s ease;
+}
+
+.bootg-toggle input:checked + .bootg-toggle-slider {
+	background: #643486;
+}
+
+.bootg-toggle input:checked + .bootg-toggle-slider::before {
+	transform: translateX(17px);
+}
+
+.bootg-builder-settings {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 1.25rem;
+}
+
+.bootg-builder-settings h3 {
+	margin: 0 0 1rem;
+	font-size: .95rem;
+	color: #2A1638;
+}
+
+.bootg-builder-footer {
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* Entries */
+
+.bootg-entries-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	overflow: hidden;
+}
+
+.bootg-entries-table th {
+	text-align: left;
+	background: #F7F3FA;
+	color: #453E4C;
+	font-size: .78rem;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	padding: .75rem 1rem;
+}
+
+.bootg-entries-table td {
+	padding: .85rem 1rem;
+	border-top: 1px solid #EDF2F7;
+	font-size: .88rem;
+}
+
+.bootg-entries-table-actions {
+	display: flex;
+	gap: .4rem;
+	justify-content: flex-end;
+}
+
+.bootg-entries-table-actions .bootg-btn {
+	padding: .35rem .7rem;
+	font-size: .76rem;
+}
+
+.bootg-pagination {
+	display: flex;
+	gap: .4rem;
+	margin-top: 1rem;
+}
+
+.bootg-entry-detail {
+	background: #fff;
+	border: 1px solid #E2E8F0;
+	border-radius: .75rem;
+	padding: 1.5rem 1.75rem;
+	max-width: 640px;
+}
+
+.bootg-entry-fields {
+	margin: 1rem 0 0;
+}
+
+.bootg-entry-fields dt {
+	font-weight: 700;
+	color: #718096;
+	font-size: .78rem;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	margin-top: 1rem;
+}
+
+.bootg-entry-fields dt:first-child {
+	margin-top: 0;
+}
+
+.bootg-entry-fields dd {
+	margin: .3rem 0 0;
+	font-size: .95rem;
+	color: #2A1638;
+}
+
+@media (max-width: 782px) {
+	.bootg-builder-layout {
+		grid-template-columns: 1fr;
+	}
+	.bootg-builder-palette {
+		position: static;
+	}
+}
