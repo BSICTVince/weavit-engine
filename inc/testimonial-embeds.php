@@ -149,16 +149,20 @@ function bootg_render_testimonial_card( $post ) {
 
 	ob_start();
 	?>
-	<div class="bg-mist rounded-xl border border-slate-200 p-8 text-center reveal">
-		<div class="flex justify-center gap-1 text-action mb-4" aria-label="<?php echo esc_attr( $rating ); ?> out of 5 stars">
-			<?php echo str_repeat( $star, max( 1, min( 5, $rating ) ) ); // phpcs:ignore ?>
+	<section class="py-16 lg:py-24 bg-white" data-testid="testimonial-embed">
+		<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="bg-mist rounded-xl border border-slate-200 p-8 text-center reveal">
+				<div class="flex justify-center gap-1 text-action mb-4" aria-label="<?php echo esc_attr( $rating ); ?> out of 5 stars">
+					<?php echo str_repeat( $star, max( 1, min( 5, $rating ) ) ); // phpcs:ignore ?>
+				</div>
+				<blockquote class="text-lg font-display font-bold text-navy leading-snug mb-4">&ldquo;<?php echo esc_html( $quote ); ?>&rdquo;</blockquote>
+				<p class="font-bold text-charcoal mb-0"><?php echo esc_html( $name ); ?></p>
+				<?php if ( $business ) : ?>
+					<p class="text-sm text-slate-400"><?php echo esc_html( $business ); ?></p>
+				<?php endif; ?>
+			</div>
 		</div>
-		<blockquote class="text-lg font-display font-bold text-navy leading-snug mb-4">&ldquo;<?php echo esc_html( $quote ); ?>&rdquo;</blockquote>
-		<p class="font-bold text-charcoal mb-0"><?php echo esc_html( $name ); ?></p>
-		<?php if ( $business ) : ?>
-			<p class="text-sm text-slate-400"><?php echo esc_html( $business ); ?></p>
-		<?php endif; ?>
-	</div>
+	</section>
 	<?php
 	return ob_get_clean();
 }
