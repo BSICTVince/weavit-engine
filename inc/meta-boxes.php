@@ -31,14 +31,6 @@ function bootg_meta_fields( $post_type ) {
 				'login_url'           => array( 'Client login URL (optional)', 'url' ),
 				'features'            => array( 'Feature checklist (one per line)', 'textarea' ),
 			);
-		case 'testimonial':
-			return array(
-				'quote'           => array( 'Quote', 'textarea' ),
-				'author_name'     => array( 'Author name', 'text' ),
-				'author_business' => array( 'Author business / location', 'text' ),
-				'rating'          => array( 'Rating (1-5)', 'number' ),
-				'is_spotlight'    => array( 'Show in homepage spotlight', 'checkbox' ),
-			);
 		case 'team_member':
 			return array(
 				'role'         => array( 'Role / title', 'text' ),
@@ -55,7 +47,7 @@ function bootg_meta_fields( $post_type ) {
 }
 
 add_action( 'init', function () {
-	foreach ( array( 'service', 'integration', 'testimonial', 'team_member', 'guide' ) as $post_type ) {
+	foreach ( array( 'service', 'integration', 'team_member', 'guide' ) as $post_type ) {
 		foreach ( bootg_meta_fields( $post_type ) as $key => $field ) {
 			register_post_meta( $post_type, $key, array(
 				'single'            => true,
@@ -86,7 +78,7 @@ function bootg_meta_sanitizer( $type ) {
 }
 
 add_action( 'add_meta_boxes', function () {
-	foreach ( array( 'service', 'integration', 'testimonial', 'team_member', 'guide' ) as $post_type ) {
+	foreach ( array( 'service', 'integration', 'team_member', 'guide' ) as $post_type ) {
 		add_meta_box(
 			'bootg_' . $post_type . '_fields',
 			'Details',
