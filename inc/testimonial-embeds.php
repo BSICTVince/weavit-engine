@@ -139,7 +139,12 @@ add_action( 'save_post_testimonial', function ( $post_id ) {
 	}
 } );
 
-/** Renders one testimonial's structured-fields card — shared by the shortcode and the homepage spotlight. */
+/**
+ * Renders one testimonial in the site's "Client Stories" spotlight design --
+ * the default template for structured-fields mode, matching the original
+ * homepage spotlight section exactly (same markup, just parameterized by
+ * whichever post is passed in rather than always auto-picking one).
+ */
 function bootg_render_testimonial_card( $post ) {
 	$quote    = get_post_meta( $post->ID, 'quote', true );
 	$name     = get_post_meta( $post->ID, 'author_name', true ) ?: get_the_title( $post );
@@ -149,18 +154,19 @@ function bootg_render_testimonial_card( $post ) {
 
 	ob_start();
 	?>
-	<section class="py-16 lg:py-24 bg-white" data-testid="testimonial-embed">
-		<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="bg-mist rounded-xl border border-slate-200 p-8 text-center reveal">
-				<div class="flex justify-center gap-1 text-action mb-4" aria-label="<?php echo esc_attr( $rating ); ?> out of 5 stars">
-					<?php echo str_repeat( $star, max( 1, min( 5, $rating ) ) ); // phpcs:ignore ?>
-				</div>
-				<blockquote class="text-lg font-display font-bold text-navy leading-snug mb-4">&ldquo;<?php echo esc_html( $quote ); ?>&rdquo;</blockquote>
-				<p class="font-bold text-charcoal mb-0"><?php echo esc_html( $name ); ?></p>
-				<?php if ( $business ) : ?>
-					<p class="text-sm text-slate-400"><?php echo esc_html( $business ); ?></p>
-				<?php endif; ?>
+	<section class="relative overflow-hidden py-16 lg:py-24 bg-white" data-testid="testimonial-spotlight">
+		<span class="big-quote-mark -top-16 -left-6" data-parallax="0.08" aria-hidden="true">&ldquo;</span>
+		<div class="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal">
+			<p class="chapter-tag"><span class="chapter-num">04</span><span class="chapter-label">Client Stories</span></p>
+			<div class="flex justify-center gap-1 text-action mb-6" aria-label="<?php echo esc_attr( $rating ); ?> out of 5 stars">
+				<?php echo str_repeat( $star, max( 1, min( 5, $rating ) ) ); // phpcs:ignore ?>
 			</div>
+			<blockquote class="text-2xl sm:text-3xl font-display font-bold text-navy leading-snug mb-7">&ldquo;<?php echo esc_html( $quote ); ?>&rdquo;</blockquote>
+			<p class="font-bold text-charcoal"><?php echo esc_html( $name ); ?></p>
+			<?php if ( $business ) : ?>
+				<p class="text-sm text-slate-400 mb-8"><?php echo esc_html( $business ); ?></p>
+			<?php endif; ?>
+			<a href="<?php echo esc_url( get_post_type_archive_link( 'testimonial' ) ?: home_url( '/testimonials/' ) ); ?>" class="btn btn-outline px-6 py-3 text-sm" data-testid="spotlight-more-btn">Read More Stories</a>
 		</div>
 	</section>
 	<?php
