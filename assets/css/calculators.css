@@ -48,7 +48,16 @@
 .bootg-calc-tab:hover{opacity:.85}
 .bootg-calc-tab.is-active{color:var(--action,#643486);opacity:1;border-bottom-color:var(--action,#643486)}
 .bootg-calc-tab-panel[hidden]{display:none}
-.bootg-calc-tab-panel p{color:var(--charcoal,#453E4C);line-height:1.65;max-width:48rem;margin:0}
+.bootg-calc-tab-panel{color:var(--charcoal,#453E4C)}
+.bootg-calc-tab-panel p{line-height:1.7;max-width:48rem;margin:0 0 1rem}
+.bootg-calc-tab-panel p:last-child{margin-bottom:0}
+.bootg-calc-tab-panel ul,
+.bootg-calc-tab-panel ol{max-width:48rem;margin:0 0 1.25rem;padding-left:1.25rem;display:flex;flex-direction:column;gap:.6rem}
+.bootg-calc-tab-panel ul:last-child,
+.bootg-calc-tab-panel ol:last-child{margin-bottom:0}
+.bootg-calc-tab-panel li{line-height:1.6}
+.bootg-calc-tab-panel strong{color:var(--navy,#3B2350)}
+.bootg-calc-tab-panel em{opacity:.8}
 
 .bootg-calc-disclaimer{font-size:.78rem;color:var(--charcoal,#453E4C);opacity:.55;line-height:1.5;margin:2rem 0 0;padding-top:1.5rem;border-top:1px solid rgba(59,35,80,.1)}
 
