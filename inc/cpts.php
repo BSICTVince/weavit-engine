@@ -24,7 +24,7 @@ add_action( 'init', function () {
 		'show_in_rest' => true,
 		'has_archive'  => 'services',
 		'rewrite'      => array( 'slug' => 'services' ),
-		'menu_icon'    => 'dashicons-portfolio',
+		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
 
@@ -39,7 +39,7 @@ add_action( 'init', function () {
 		'show_in_rest' => true,
 		'has_archive'  => 'partners',
 		'rewrite'      => array( 'slug' => 'partners' ),
-		'menu_icon'    => 'dashicons-admin-plugins',
+		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
 
@@ -54,7 +54,7 @@ add_action( 'init', function () {
 		'show_in_rest' => true,
 		'has_archive'  => 'testimonials',
 		'rewrite'      => array( 'slug' => 'testimonials' ),
-		'menu_icon'    => 'dashicons-format-quote',
+		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title' ),
 	) );
 
@@ -69,7 +69,7 @@ add_action( 'init', function () {
 		'show_in_rest' => true,
 		'has_archive'  => 'team',
 		'rewrite'      => array( 'slug' => 'team' ),
-		'menu_icon'    => 'dashicons-groups',
+		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
 
@@ -84,7 +84,7 @@ add_action( 'init', function () {
 		'show_in_rest' => true,
 		'has_archive'  => 'guides',
 		'rewrite'      => array( 'slug' => 'guides' ),
-		'menu_icon'    => 'dashicons-book-alt',
+		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'excerpt' ),
 	) );
 } );
