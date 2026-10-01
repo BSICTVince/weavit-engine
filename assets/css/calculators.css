@@ -31,8 +31,35 @@
 .bootg-calc-field-input select{flex:1;border:none;outline:none;padding:.65rem .75rem;font-size:.95rem;color:var(--charcoal,#453E4C);background:transparent;width:100%}
 .bootg-calc-affix{padding:0 .75rem;font-size:.85rem;font-weight:600;color:var(--charcoal,#453E4C);opacity:.6;white-space:nowrap}
 
+.bootg-calc-field-hint{font-size:.78rem;color:var(--charcoal,#453E4C);opacity:.6;margin-top:-.15rem}
+.bootg-calc-slider{width:100%;accent-color:var(--action,#643486);cursor:pointer}
+
 .bootg-calc-results{background:var(--mist,#F7F3FA);border-radius:.9rem;padding:1.5rem;align-self:start;display:flex;flex-direction:column;gap:1rem}
+.bootg-calc-summary{font-size:.95rem;line-height:1.5;color:var(--navy,#3B2350);font-weight:600;margin:0;padding-bottom:1rem;border-bottom:1px solid rgba(59,35,80,.1)}
+.bootg-calc-summary:empty{display:none}
 .bootg-calc-result-row{display:flex;flex-direction:column;gap:.2rem;padding-bottom:1rem;border-bottom:1px solid rgba(59,35,80,.1)}
 .bootg-calc-result-row:last-child{border-bottom:none;padding-bottom:0}
 .bootg-calc-result-label{font-size:.8rem;font-weight:600;color:var(--charcoal,#453E4C);opacity:.75}
 .bootg-calc-result-value{font-family:'Archivo',sans-serif;font-weight:800;font-size:1.3rem;color:var(--navy,#3B2350)}
+
+/* ============ Tabs (Calculator / About this calculator / Help) ============ */
+.bootg-calc-tabs{display:flex;flex-wrap:wrap;gap:.5rem;border-bottom:1px solid rgba(59,35,80,.12);margin-bottom:1.75rem}
+.bootg-calc-tab{font-size:.85rem;font-weight:700;color:var(--charcoal,#453E4C);opacity:.6;background:none;border:none;border-bottom:2px solid transparent;padding:.75rem .25rem;margin-right:1.5rem;cursor:pointer;transition:color .2s ease,opacity .2s ease}
+.bootg-calc-tab:hover{opacity:.85}
+.bootg-calc-tab.is-active{color:var(--action,#643486);opacity:1;border-bottom-color:var(--action,#643486)}
+.bootg-calc-tab-panel[hidden]{display:none}
+.bootg-calc-tab-panel p{color:var(--charcoal,#453E4C);line-height:1.65;max-width:48rem;margin:0}
+
+.bootg-calc-disclaimer{font-size:.78rem;color:var(--charcoal,#453E4C);opacity:.55;line-height:1.5;margin:2rem 0 0;padding-top:1.5rem;border-top:1px solid rgba(59,35,80,.1)}
+
+/* ============ Standalone calculator pages (archive + single CPT templates) ============ */
+.bootg-calc-page-hero{background:var(--navy,#3B2350);color:#fff;padding:4rem 1.5rem}
+.bootg-calc-page-hero-inner{max-width:72rem;margin:0 auto}
+.bootg-calc-page-hero h1{font-family:'Archivo',sans-serif;font-weight:800;font-size:2.5rem;margin:.5rem 0}
+.bootg-calc-page-hero-sub{font-size:1.05rem;color:rgba(255,255,255,.7);margin:0;max-width:40rem}
+.bootg-calc-breadcrumb{font-size:.85rem;color:rgba(255,255,255,.5);margin:0 0 .5rem}
+.bootg-calc-breadcrumb a{color:rgba(255,255,255,.5);text-decoration:none}
+.bootg-calc-breadcrumb a:hover{color:#fff}
+.bootg-calc-breadcrumb span{margin:0 .4rem}
+.bootg-calc-page-body{padding:4rem 1.5rem}
+.bootg-calc-page-body-inner{max-width:72rem;margin:0 auto}
