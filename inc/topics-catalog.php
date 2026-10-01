@@ -1,12 +1,13 @@
 <?php
 /**
- * Topics Catalog — a shared content-planning library, similar in spirit to
- * a syndicated blog library (BizPress Blogs etc.): one place that lists
- * every topic, and which site(s) have used it. The difference is the
- * point of the tool — it does NOT store finished articles to import
- * as-is. Each Topic stores the shared FACTS once (what's true, not how
- * it's phrased), then a "usage" row per site that used it: which site,
- * the angle/voice it was written in, status, and its published URL. A
+ * Topics Catalog — a shared content-planning library in the same spirit as
+ * a syndicated blog library (BizPress Blogs etc.): a searchable, filterable,
+ * paginated grid of topics, each showing which site(s) have used it. Each
+ * Topic stores the shared FACTS once (what's true, not how it's phrased),
+ * a category, and a "usage" row per site that used it: which site, the
+ * angle/voice it was written in, status, published URL, and optionally the
+ * full finished draft for that site (so a topic's card can double as the
+ * record of what was actually published, not just a planning note). A
  * "Copy AI brief" button assembles the facts + that site's angle + an
  * explicit instruction to differ from every other site's angle into one
  * ready-to-paste prompt — so the next write-up is a deliberate paraphrase,
@@ -99,9 +100,10 @@ add_action( 'admin_post_bootg_save_topic', function () {
 	$data   = bootg_topics_catalog_read();
 	$topics = $data['topics'];
 
-	$id    = isset( $_POST['topic_id'] ) ? sanitize_title( wp_unslash( $_POST['topic_id'] ) ) : '';
-	$title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
-	$facts = isset( $_POST['facts'] ) ? sanitize_textarea_field( wp_unslash( $_POST['facts'] ) ) : '';
+	$id       = isset( $_POST['topic_id'] ) ? sanitize_title( wp_unslash( $_POST['topic_id'] ) ) : '';
+	$title    = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+	$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+	$facts    = isset( $_POST['facts'] ) ? sanitize_textarea_field( wp_unslash( $_POST['facts'] ) ) : '';
 
 	$usage = array();
 	if ( ! empty( $_POST['usage_site'] ) && is_array( $_POST['usage_site'] ) ) {
@@ -109,6 +111,7 @@ add_action( 'admin_post_bootg_save_topic', function () {
 		$angles   = wp_unslash( $_POST['usage_angle'] ?? array() );
 		$statuses = wp_unslash( $_POST['usage_status'] ?? array() );
 		$urls     = wp_unslash( $_POST['usage_url'] ?? array() );
+		$drafts   = wp_unslash( $_POST['usage_draft'] ?? array() );
 		foreach ( $sites as $i => $site_label ) {
 			$site_label = sanitize_text_field( $site_label );
 			if ( '' === $site_label ) {
@@ -119,6 +122,7 @@ add_action( 'admin_post_bootg_save_topic', function () {
 				'angle'  => sanitize_textarea_field( $angles[ $i ] ?? '' ),
 				'status' => in_array( $statuses[ $i ] ?? '', array_keys( bootg_topic_status_options() ), true ) ? $statuses[ $i ] : '',
 				'url'    => esc_url_raw( $urls[ $i ] ?? '' ),
+				'draft'  => sanitize_textarea_field( $drafts[ $i ] ?? '' ),
 			);
 		}
 	}
@@ -129,16 +133,18 @@ add_action( 'admin_post_bootg_save_topic', function () {
 	if ( $is_new ) {
 		$id      = bootg_topic_slug( $title ?: 'topic', $existing_ids );
 		$topics[] = array(
-			'id'    => $id,
-			'title' => $title,
-			'facts' => $facts,
-			'usage' => $usage,
+			'id'       => $id,
+			'title'    => $title,
+			'category' => $category,
+			'facts'    => $facts,
+			'usage'    => $usage,
 		);
 	} else {
-		$index                 = bootg_topics_find( $topics, $id );
-		$topics[ $index ]['title'] = $title;
-		$topics[ $index ]['facts'] = $facts;
-		$topics[ $index ]['usage'] = $usage;
+		$index                    = bootg_topics_find( $topics, $id );
+		$topics[ $index ]['title']    = $title;
+		$topics[ $index ]['category'] = $category;
+		$topics[ $index ]['facts']    = $facts;
+		$topics[ $index ]['usage']    = $usage;
 	}
 
 	$data['topics'] = $topics;
@@ -187,10 +193,47 @@ function bootg_render_topics_catalog_page() {
 	bootg_render_topics_list_screen();
 }
 
+function bootg_topics_catalog_categories( $topics ) {
+	$cats = array();
+	foreach ( $topics as $topic ) {
+		if ( ! empty( $topic['category'] ) ) {
+			$cats[ $topic['category'] ] = true;
+		}
+	}
+	$cats = array_keys( $cats );
+	sort( $cats );
+	return $cats;
+}
+
 function bootg_render_topics_list_screen() {
-	$data   = bootg_topics_catalog_read();
-	$topics = $data['topics'];
-	$statuses = bootg_topic_status_options();
+	$data      = bootg_topics_catalog_read();
+	$topics    = $data['topics'];
+	$statuses  = bootg_topic_status_options();
+	$per_page  = 12;
+
+	$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+	$cat    = isset( $_GET['cat'] ) ? sanitize_text_field( wp_unslash( $_GET['cat'] ) ) : '';
+	$paged  = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+
+	$filtered = array_filter( $topics, function ( $topic ) use ( $search, $cat ) {
+		if ( $cat && ( $topic['category'] ?? '' ) !== $cat ) {
+			return false;
+		}
+		if ( $search ) {
+			$haystack = strtolower( ( $topic['title'] ?? '' ) . ' ' . ( $topic['facts'] ?? '' ) );
+			if ( false === strpos( $haystack, strtolower( $search ) ) ) {
+				return false;
+			}
+		}
+		return true;
+	} );
+	$filtered   = array_values( $filtered );
+	$total      = count( $filtered );
+	$total_pages = max( 1, (int) ceil( $total / $per_page ) );
+	$paged      = min( $paged, $total_pages );
+	$page_items = array_slice( $filtered, ( $paged - 1 ) * $per_page, $per_page );
+	$categories = bootg_topics_catalog_categories( $topics );
+	$base_url   = admin_url( 'admin.php?page=bootg-topics-catalog' );
 	?>
 	<div class="wrap">
 		<h1 class="wp-heading-inline">Topics Catalog</h1>
@@ -201,43 +244,73 @@ function bootg_render_topics_list_screen() {
 			<div class="notice notice-success is-dismissible"><p>Topic deleted.</p></div>
 		<?php endif; ?>
 
-		<p class="description" style="max-width:720px;">One row per topic. "Facts" are the shared source of truth; each site's own write-up should be its own wording, not a copy — open a topic and use "Copy AI brief" on a site's row to get a prompt that explicitly asks for different phrasing, structure, and examples than the other site(s) already using this topic.</p>
+		<p class="description" style="max-width:760px;">One card per topic. "Facts" are the shared source of truth; each site's own write-up should be its own wording, not a copy — open a topic and use "Copy AI brief" on a site's row to get a prompt that explicitly asks for different phrasing, structure, and examples than the other site(s) already using this topic.</p>
+
+		<form method="get" style="display:flex;gap:8px;align-items:center;margin:16px 0;flex-wrap:wrap;">
+			<input type="hidden" name="page" value="bootg-topics-catalog">
+			<select name="cat">
+				<option value="">All categories</option>
+				<?php foreach ( $categories as $c ) : ?>
+					<option value="<?php echo esc_attr( $c ); ?>" <?php selected( $cat, $c ); ?>><?php echo esc_html( $c ); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Search topics…" class="regular-text">
+			<button type="submit" class="button">Search</button>
+			<?php if ( $search || $cat ) : ?>
+				<a href="<?php echo esc_url( $base_url ); ?>" class="button">Clear</a>
+			<?php endif; ?>
+		</form>
 
 		<?php if ( empty( $topics ) ) : ?>
 			<p>No topics yet. <a href="<?php echo esc_url( add_query_arg( array( 'page' => 'bootg-topics-catalog', 'action' => 'new' ), admin_url( 'admin.php' ) ) ); ?>">Add your first one</a>.</p>
+		<?php elseif ( empty( $page_items ) ) : ?>
+			<p>No topics match that search. <a href="<?php echo esc_url( $base_url ); ?>">Clear filters</a>.</p>
 		<?php else : ?>
-			<table class="wp-list-table widefat fixed striped">
-				<thead>
-					<tr>
-						<th>Topic</th>
-						<th>Sites using this topic</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ( $topics as $topic ) : ?>
-						<tr>
-							<td>
-								<strong><a href="<?php echo esc_url( add_query_arg( array( 'page' => 'bootg-topics-catalog', 'action' => 'edit', 'topic' => $topic['id'] ), admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html( $topic['title'] ?: '(untitled)' ); ?></a></strong>
-							</td>
-							<td>
-								<?php if ( empty( $topic['usage'] ) ) : ?>
-									<em>Not used anywhere yet</em>
-								<?php else : ?>
-									<?php foreach ( $topic['usage'] as $u ) : ?>
-										<span style="display:inline-block;margin:0 1.5em .25em 0;">
-											<strong><?php echo esc_html( $u['site'] ); ?></strong>
-											— <?php echo esc_html( $statuses[ $u['status'] ] ?? 'Not started' ); ?>
-											<?php if ( ! empty( $u['url'] ) ) : ?>
-												(<a href="<?php echo esc_url( $u['url'] ); ?>" target="_blank" rel="noopener">view</a>)
-											<?php endif; ?>
-										</span>
-									<?php endforeach; ?>
-								<?php endif; ?>
-							</td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
+			<p class="description"><?php echo esc_html( $total ); ?> topic<?php echo 1 === $total ? '' : 's'; ?><?php echo $search || $cat ? ' matching your filters' : ''; ?>.</p>
+
+			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin:16px 0;">
+				<?php foreach ( $page_items as $topic ) : ?>
+					<div style="border:1px solid #dcdcde;border-radius:6px;background:#fff;padding:16px;display:flex;flex-direction:column;">
+						<?php if ( ! empty( $topic['category'] ) ) : ?>
+							<span style="align-self:flex-start;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:#2271b1;background:#f0f6fc;border-radius:999px;padding:3px 10px;margin-bottom:8px;"><?php echo esc_html( $topic['category'] ); ?></span>
+						<?php endif; ?>
+						<strong style="font-size:15px;margin-bottom:6px;">
+							<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'bootg-topics-catalog', 'action' => 'edit', 'topic' => $topic['id'] ), admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html( $topic['title'] ?: '(untitled)' ); ?></a>
+						</strong>
+						<p style="color:#50575e;font-size:13px;line-height:1.5;flex-grow:1;margin:0 0 10px;"><?php echo esc_html( wp_trim_words( $topic['facts'] ?? '', 20 ) ); ?></p>
+						<div style="font-size:12px;color:#50575e;">
+							<?php if ( empty( $topic['usage'] ) ) : ?>
+								<em>Not used anywhere yet</em>
+							<?php else : ?>
+								<?php foreach ( $topic['usage'] as $u ) : ?>
+									<div style="margin-bottom:2px;">
+										<strong><?php echo esc_html( $u['site'] ); ?></strong>
+										— <?php echo esc_html( $statuses[ $u['status'] ] ?? 'Not started' ); ?>
+										<?php if ( ! empty( $u['url'] ) ) : ?>
+											(<a href="<?php echo esc_url( $u['url'] ); ?>" target="_blank" rel="noopener">view</a>)
+										<?php endif; ?>
+									</div>
+								<?php endforeach; ?>
+							<?php endif; ?>
+						</div>
+					</div>
+				<?php endforeach; ?>
+			</div>
+
+			<?php if ( $total_pages > 1 ) : ?>
+				<div class="tablenav"><div class="tablenav-pages" style="display:flex;gap:6px;align-items:center;">
+					<?php
+					echo wp_kses_post( paginate_links( array(
+						'base'      => add_query_arg( 'paged', '%#%', add_query_arg( array( 's' => $search, 'cat' => $cat ), $base_url ) ),
+						'format'    => '',
+						'current'   => $paged,
+						'total'     => $total_pages,
+						'prev_text' => 'Previous',
+						'next_text' => 'Next',
+					) ) );
+					?>
+				</div></div>
+			<?php endif; ?>
 		<?php endif; ?>
 	</div>
 	<?php
@@ -248,7 +321,7 @@ function bootg_render_topic_edit_screen() {
 	$topics = $data['topics'];
 	$id     = isset( $_GET['topic'] ) ? sanitize_title( wp_unslash( $_GET['topic'] ) ) : '';
 	$index  = $id ? bootg_topics_find( $topics, $id ) : false;
-	$topic  = false !== $index ? $topics[ $index ] : array( 'id' => '', 'title' => '', 'facts' => '', 'usage' => array() );
+	$topic  = false !== $index ? $topics[ $index ] : array( 'id' => '', 'title' => '', 'category' => '', 'facts' => '', 'usage' => array() );
 
 	// Always keep at least one usage row in the form, plus one blank template row for adding another.
 	$usage_rows = $topic['usage'];
@@ -270,6 +343,18 @@ function bootg_render_topic_edit_screen() {
 				<tr>
 					<th><label for="title">Title</label></th>
 					<td><input type="text" id="title" name="title" value="<?php echo esc_attr( $topic['title'] ); ?>" class="large-text" placeholder="e.g. What is a break-even point?" required></td>
+				</tr>
+				<tr>
+					<th><label for="category">Category</label></th>
+					<td>
+						<input type="text" id="category" name="category" value="<?php echo esc_attr( $topic['category'] ?? '' ); ?>" class="regular-text" list="bootg-topic-categories" placeholder="e.g. Cash flow">
+						<datalist id="bootg-topic-categories">
+							<?php foreach ( bootg_topics_catalog_categories( $topics ) as $c ) : ?>
+								<option value="<?php echo esc_attr( $c ); ?>">
+							<?php endforeach; ?>
+						</datalist>
+						<p class="description">Free text — type an existing category or a new one. Used for the filter dropdown on the catalog list.</p>
+					</td>
 				</tr>
 				<tr>
 					<th><label for="facts">Facts / outline</label></th>
@@ -299,7 +384,7 @@ function bootg_render_topic_edit_screen() {
 	</div>
 
 	<template id="bootg-usage-row-template">
-		<?php bootg_render_usage_row( '__INDEX__', array( 'site' => '', 'angle' => '', 'status' => '', 'url' => '' ), $statuses, true ); ?>
+		<?php bootg_render_usage_row( '__INDEX__', array( 'site' => '', 'angle' => '', 'status' => '', 'url' => '', 'draft' => '' ), $statuses, true ); ?>
 	</template>
 
 	<script>
@@ -395,6 +480,12 @@ function bootg_render_usage_row( $i, $u, $statuses, $is_template = false ) {
 			<tr>
 				<th>Published URL</th>
 				<td><input type="url" name="usage_url[<?php echo esc_attr( $i ); ?>]" value="<?php echo esc_attr( $u['url'] ); ?>" class="regular-text" placeholder="https://..."></td>
+			</tr>
+			<tr>
+				<th>Full draft <span style="font-weight:400;color:#787c82;">(optional)</span></th>
+				<td>
+					<textarea name="usage_draft[<?php echo esc_attr( $i ); ?>]" rows="6" class="large-text" placeholder="Paste the finished article for this site here once it's written, so this card becomes the record of what was actually published."><?php echo esc_textarea( $u['draft'] ?? '' ); ?></textarea>
+				</td>
 			</tr>
 		</table>
 		<p style="margin:10px 0 0;">
