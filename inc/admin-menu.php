@@ -61,6 +61,12 @@ function bootg_module_registry() {
 			'icon'        => 'dashicons-book-alt',
 			'togglable'   => true,
 		),
+		'downloads'      => array(
+			'label'       => 'Downloads',
+			'description' => 'Upload a file (PDF, image, doc, anything) once, get a shortcode and a direct link you can drop into any page.',
+			'icon'        => 'dashicons-media-default',
+			'togglable'   => true,
+		),
 		'calculators'    => array(
 			'label'       => 'Calculators',
 			'description' => '16 business + personal calculators with their own URLs, built in-house.',
