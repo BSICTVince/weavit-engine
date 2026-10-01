@@ -167,7 +167,111 @@ add_action( 'admin_post_bootg_save_modules', function () {
  * only owns the generic UI + AJAX runner; the actual import logic for
  * Bookkeeping On The Go lives in the theme (inc/starter-site-import.php),
  * same separation as Content Tools.
+ *
+ * A theme can only register its own steps once IT is the active theme (its
+ * functions.php has to have loaded for the filter to even be hooked) — so
+ * on a site where the theme isn't installed/active yet, `weavit_starter_sites`
+ * alone would have nothing to show. `weavit_starter_site_catalog()` is the
+ * plugin's own, theme-independent list of installable starter sites (just
+ * id/title/description + which theme to fetch from GitHub) so the card and
+ * an "Install theme" step always exist; once that step switches the active
+ * theme, the very next AJAX request boots with the new theme loaded and its
+ * `weavit_starter_sites` steps become available to merge in.
  */
+function weavit_starter_site_catalog() {
+	return array(
+		'bootg' => array(
+			'id'          => 'bootg',
+			'title'       => 'Bookkeeping On The Go',
+			'description' => 'The full starter site this theme ships with — services, partners, team, testimonials, blog posts, and every core page, wired up and ready to edit.',
+			'preview_url' => home_url( '/' ),
+			'theme'       => array(
+				'slug' => 'bookkeeping-on-the-go',
+				'repo' => 'BSICTVince/bookkeeping-on-the-go',
+			),
+			'steps'       => array(),
+		),
+	);
+}
+
+/** Catalog entries, merged with whatever the active theme contributes via `weavit_starter_sites` (steps, live preview_url, etc.), keyed by id. */
+function weavit_starter_sites() {
+	$sites = weavit_starter_site_catalog();
+
+	foreach ( apply_filters( 'weavit_starter_sites', array() ) as $site ) {
+		if ( empty( $site['id'] ) ) {
+			continue;
+		}
+		$sites[ $site['id'] ] = array_merge( $sites[ $site['id'] ] ?? array(), $site );
+	}
+
+	foreach ( $sites as $id => $site ) {
+		$sites[ $id ]['theme_active'] = empty( $site['theme']['slug'] ) || get_stylesheet() === $site['theme']['slug'];
+	}
+
+	return array_values( $sites );
+}
+
+function weavit_starter_site_by_id( $id ) {
+	foreach ( weavit_starter_sites() as $site ) {
+		if ( $site['id'] === $id ) {
+			return $site;
+		}
+	}
+	return null;
+}
+
+add_action( 'wp_ajax_weavit_starter_site_install_theme', function () {
+	if ( ! current_user_can( 'install_themes' ) ) {
+		wp_send_json_error( array( 'message' => 'Not allowed.' ), 403 );
+	}
+	check_ajax_referer( 'weavit_starter_site_import', 'nonce' );
+
+	$site_id = isset( $_POST['site'] ) ? sanitize_key( wp_unslash( $_POST['site'] ) ) : '';
+	$site    = weavit_starter_site_by_id( $site_id );
+
+	if ( ! $site || empty( $site['theme']['slug'] ) || empty( $site['theme']['repo'] ) ) {
+		wp_send_json_error( array( 'message' => 'Unknown starter site.' ) );
+	}
+
+	$slug = $site['theme']['slug'];
+	$repo = $site['theme']['repo'];
+
+	if ( ! wp_get_theme( $slug )->exists() ) {
+		$tag = weavit_github_latest_tag( $repo );
+		if ( is_wp_error( $tag ) ) {
+			wp_send_json_error( array( 'message' => $tag->get_error_message() ) );
+		}
+		$installed = weavit_install_github_package( $repo, $tag, 'theme', $slug );
+		if ( is_wp_error( $installed ) ) {
+			wp_send_json_error( array( 'message' => $installed->get_error_message() ) );
+		}
+	}
+
+	if ( get_stylesheet() !== $slug ) {
+		switch_theme( $slug );
+	}
+
+	wp_send_json_success( array( 'message' => 'Theme installed and activated.' ) );
+} );
+
+/** Re-reads weavit_starter_sites() — called right after the install step, in a fresh request where a just-activated theme's functions.php (and its step list) has now actually loaded. */
+add_action( 'wp_ajax_weavit_starter_site_refresh_steps', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Not allowed.' ), 403 );
+	}
+	check_ajax_referer( 'weavit_starter_site_import', 'nonce' );
+
+	$site_id = isset( $_POST['site'] ) ? sanitize_key( wp_unslash( $_POST['site'] ) ) : '';
+	$site    = weavit_starter_site_by_id( $site_id );
+
+	if ( ! $site ) {
+		wp_send_json_error( array( 'message' => 'Unknown starter site.' ) );
+	}
+
+	wp_send_json_success( array( 'steps' => $site['steps'] ) );
+} );
+
 add_action( 'wp_ajax_weavit_starter_site_step', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_send_json_error( array( 'message' => 'Not allowed.' ), 403 );
@@ -307,15 +411,15 @@ function bootg_render_weavit_starter_sites_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	$sites = apply_filters( 'weavit_starter_sites', array() );
+	$sites = weavit_starter_sites();
 	?>
 	<div class="wrap">
 		<h1>Weavit</h1>
 		<?php bootg_weavit_tabs_nav( 'weavit-starter-sites' ); ?>
-		<p class="description" style="max-width:700px;">One-click setup for the active theme's starter content — pages, services, menus, and blog posts, imported in order. Safe to run more than once; anything already there is skipped.</p>
+		<p class="description" style="max-width:700px;">One-click setup for a starter site — installs its theme from GitHub if it isn't already active, then imports its pages, services, menus, and blog posts in order. Safe to run more than once; anything already there is skipped.</p>
 
 		<?php if ( empty( $sites ) ) : ?>
-			<p class="description" style="margin-top:20px;">The active theme hasn't registered a starter site.</p>
+			<p class="description" style="margin-top:20px;">No starter sites are registered yet.</p>
 		<?php else : ?>
 			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-top:24px;max-width:900px;">
 				<?php foreach ( $sites as $site ) : ?>
@@ -326,6 +430,9 @@ function bootg_render_weavit_starter_sites_page() {
 						<div style="padding:16px;">
 							<strong style="display:block;margin-bottom:4px;font-size:14px;"><?php echo esc_html( $site['title'] ); ?></strong>
 							<p style="margin:0 0 14px;color:#50575e;font-size:12px;line-height:1.5;"><?php echo esc_html( $site['description'] ); ?></p>
+							<?php if ( empty( $site['theme_active'] ) ) : ?>
+								<p style="margin:0 0 10px;font-size:11px;font-weight:600;color:#9a6700;">Theme not installed yet — Import will install it from GitHub first.</p>
+							<?php endif; ?>
 							<div style="display:flex;gap:8px;">
 								<a href="<?php echo esc_url( $site['preview_url'] ); ?>" target="_blank" class="button">Preview</a>
 								<button type="button" class="button button-primary weavit-import-starter-site" data-site="<?php echo esc_attr( $site['id'] ); ?>">Import</button>
@@ -363,6 +470,38 @@ function bootg_render_weavit_starter_sites_page() {
 			} );
 		} );
 
+		function addStepRow( list, key, label ) {
+			var li = document.createElement( 'li' );
+			li.id = 'weavit-step-' + key;
+			li.style.cssText = 'padding:8px 0;border-bottom:1px solid #f0f0f1;display:flex;gap:10px;align-items:flex-start;';
+			li.innerHTML = '<span class="weavit-step-icon" style="flex-shrink:0;">○</span><span><strong>' + label + '</strong><div class="weavit-step-message" style="color:#787c82;font-size:12px;"></div></span>';
+			list.appendChild( li );
+			return li;
+		}
+
+		function runStep( action, extra ) {
+			var body = new URLSearchParams();
+			body.append( 'action', action );
+			body.append( 'nonce', nonce );
+			Object.keys( extra ).forEach( function ( k ) { body.append( k, extra[ k ] ); } );
+
+			return fetch( ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body } )
+				.then( function ( r ) { return r.json(); } )
+				.catch( function () { return { success: false, data: { message: 'Request failed.' } }; } );
+		}
+
+		function markStep( li, res ) {
+			var icon = li.querySelector( '.weavit-step-icon' );
+			var msg  = li.querySelector( '.weavit-step-message' );
+			if ( res.success ) {
+				icon.textContent = '✅';
+				msg.textContent = ( res.data && res.data.message ) || 'Done.';
+			} else {
+				icon.textContent = '⚠';
+				msg.textContent = ( res.data && res.data.message ) || 'Something went wrong.';
+			}
+		}
+
 		function runImport( site ) {
 			var modal = byId( 'weavit-import-modal' );
 			var list  = byId( 'weavit-import-steps' );
@@ -372,55 +511,50 @@ function bootg_render_weavit_starter_sites_page() {
 			title.textContent = 'Importing ' + site.title + '…';
 			close.style.display = 'none';
 			list.innerHTML = '';
-
-			site.steps.forEach( function ( step ) {
-				var li = document.createElement( 'li' );
-				li.id = 'weavit-step-' + step.key;
-				li.style.cssText = 'padding:8px 0;border-bottom:1px solid #f0f0f1;display:flex;gap:10px;align-items:flex-start;';
-				li.innerHTML = '<span class="weavit-step-icon" style="flex-shrink:0;">○</span><span><strong>' + step.label + '</strong><div class="weavit-step-message" style="color:#787c82;font-size:12px;"></div></span>';
-				list.appendChild( li );
-			} );
-
 			modal.style.display = 'flex';
+
+			var steps = site.steps.slice();
+			var needsInstall = ! site.theme_active;
+			if ( needsInstall ) {
+				steps.unshift( { key: '__install_theme', label: 'Install & activate the ' + site.title + ' theme from GitHub' } );
+			}
+			steps.forEach( function ( step ) { addStepRow( list, step.key, step.label ); } );
 
 			var i = 0;
 			function next() {
-				if ( i >= site.steps.length ) {
+				if ( i >= steps.length ) {
 					title.textContent = site.title + ' is ready.';
 					close.style.display = 'inline-block';
 					return;
 				}
-				var step = site.steps[ i ];
+				var step = steps[ i ];
 				var li   = byId( 'weavit-step-' + step.key );
-				var icon = li.querySelector( '.weavit-step-icon' );
-				var msg  = li.querySelector( '.weavit-step-message' );
-				icon.textContent = '⏳';
+				li.querySelector( '.weavit-step-icon' ).textContent = '⏳';
 
-				var body = new URLSearchParams();
-				body.append( 'action', 'weavit_starter_site_step' );
-				body.append( 'nonce', nonce );
-				body.append( 'site', site.id );
-				body.append( 'step', step.key );
-
-				fetch( ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body } )
-					.then( function ( r ) { return r.json(); } )
-					.then( function ( res ) {
-						if ( res.success ) {
-							icon.textContent = '✅';
-							msg.textContent = ( res.data && res.data.message ) || 'Done.';
-						} else {
-							icon.textContent = '⚠';
-							msg.textContent = ( res.data && res.data.message ) || 'Something went wrong.';
+				if ( '__install_theme' === step.key ) {
+					runStep( 'weavit_starter_site_install_theme', { site: site.id } ).then( function ( res ) {
+						markStep( li, res );
+						if ( ! res.success ) {
+							title.textContent = 'Could not install the theme.';
+							close.style.display = 'inline-block';
+							return;
 						}
-						i++;
-						next();
-					} )
-					.catch( function () {
-						icon.textContent = '⚠';
-						msg.textContent = 'Request failed.';
-						i++;
-						next();
+						runStep( 'weavit_starter_site_refresh_steps', { site: site.id } ).then( function ( refreshRes ) {
+							var newSteps = ( refreshRes.success && refreshRes.data && refreshRes.data.steps ) || [];
+							newSteps.forEach( function ( s ) { addStepRow( list, s.key, s.label ); } );
+							steps = steps.slice( 0, i + 1 ).concat( newSteps );
+							i++;
+							next();
+						} );
 					} );
+					return;
+				}
+
+				runStep( 'weavit_starter_site_step', { site: site.id, step: step.key } ).then( function ( res ) {
+					markStep( li, res );
+					i++;
+					next();
+				} );
 			}
 			next();
 		}
