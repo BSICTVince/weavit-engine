@@ -159,6 +159,36 @@ add_action( 'admin_post_bootg_save_modules', function () {
 	exit;
 } );
 
+/**
+ * Starter Sites — a theme registers itself via the `weavit_starter_sites`
+ * filter (id, title, description, preview_url, ordered list of step
+ * keys/labels) and handles each step via the `weavit_starter_site_run_step`
+ * filter, returning `array( 'message' => '...' )` or a WP_Error. This file
+ * only owns the generic UI + AJAX runner; the actual import logic for
+ * Bookkeeping On The Go lives in the theme (inc/starter-site-import.php),
+ * same separation as Content Tools.
+ */
+add_action( 'wp_ajax_weavit_starter_site_step', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Not allowed.' ), 403 );
+	}
+	check_ajax_referer( 'weavit_starter_site_import', 'nonce' );
+
+	$site = isset( $_POST['site'] ) ? sanitize_key( wp_unslash( $_POST['site'] ) ) : '';
+	$step = isset( $_POST['step'] ) ? sanitize_key( wp_unslash( $_POST['step'] ) ) : '';
+
+	$result = apply_filters( 'weavit_starter_site_run_step', null, $site, $step );
+
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+	}
+	if ( null === $result ) {
+		wp_send_json_error( array( 'message' => 'Unknown starter site or step.' ) );
+	}
+
+	wp_send_json_success( $result );
+} );
+
 add_action( 'admin_post_bootg_save_industry', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( 'Not allowed.' );
@@ -277,11 +307,131 @@ function bootg_render_weavit_starter_sites_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
+	$sites = apply_filters( 'weavit_starter_sites', array() );
 	?>
 	<div class="wrap">
 		<h1>Weavit</h1>
 		<?php bootg_weavit_tabs_nav( 'weavit-starter-sites' ); ?>
-		<p class="description" style="max-width:700px;">Not built yet — this will let a brand-new site import a starter layout the same way Blocksy's Starter Sites work. Coming in a later pass.</p>
+		<p class="description" style="max-width:700px;">One-click setup for the active theme's starter content — pages, services, menus, and blog posts, imported in order. Safe to run more than once; anything already there is skipped.</p>
+
+		<?php if ( empty( $sites ) ) : ?>
+			<p class="description" style="margin-top:20px;">The active theme hasn't registered a starter site.</p>
+		<?php else : ?>
+			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-top:24px;max-width:900px;">
+				<?php foreach ( $sites as $site ) : ?>
+					<div class="weavit-starter-site-card" style="border:1px solid #dcdcde;border-radius:8px;background:#fff;overflow:hidden;">
+						<div style="aspect-ratio:4/3;background:linear-gradient(135deg,#2271b1,#1a3a5c);display:flex;align-items:center;justify-content:center;">
+							<span class="dashicons dashicons-admin-site-alt3" style="font-size:48px;width:48px;height:48px;color:rgba(255,255,255,.85);"></span>
+						</div>
+						<div style="padding:16px;">
+							<strong style="display:block;margin-bottom:4px;font-size:14px;"><?php echo esc_html( $site['title'] ); ?></strong>
+							<p style="margin:0 0 14px;color:#50575e;font-size:12px;line-height:1.5;"><?php echo esc_html( $site['description'] ); ?></p>
+							<div style="display:flex;gap:8px;">
+								<a href="<?php echo esc_url( $site['preview_url'] ); ?>" target="_blank" class="button">Preview</a>
+								<button type="button" class="button button-primary weavit-import-starter-site" data-site="<?php echo esc_attr( $site['id'] ); ?>">Import</button>
+							</div>
+						</div>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
 	</div>
+
+	<div id="weavit-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;align-items:center;justify-content:center;">
+		<div style="background:#fff;border-radius:8px;max-width:480px;width:92%;max-height:80vh;overflow:auto;padding:24px;">
+			<h2 id="weavit-import-modal-title" style="margin-top:0;">Importing&hellip;</h2>
+			<ul id="weavit-import-steps" style="list-style:none;margin:0 0 20px;padding:0;"></ul>
+			<button type="button" class="button" id="weavit-import-modal-close" style="display:none;">Close &amp; refresh</button>
+		</div>
+	</div>
+
+	<script>
+	( function () {
+		var sites   = <?php echo wp_json_encode( $sites ); ?>;
+		var ajaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+		var nonce   = <?php echo wp_json_encode( wp_create_nonce( 'weavit_starter_site_import' ) ); ?>;
+
+		function byId( id ) { return document.getElementById( id ); }
+
+		document.querySelectorAll( '.weavit-import-starter-site' ).forEach( function ( btn ) {
+			btn.addEventListener( 'click', function () {
+				var siteId = btn.getAttribute( 'data-site' );
+				var site = sites.filter( function ( s ) { return s.id === siteId; } )[0];
+				if ( site ) {
+					runImport( site );
+				}
+			} );
+		} );
+
+		function runImport( site ) {
+			var modal = byId( 'weavit-import-modal' );
+			var list  = byId( 'weavit-import-steps' );
+			var title = byId( 'weavit-import-modal-title' );
+			var close = byId( 'weavit-import-modal-close' );
+
+			title.textContent = 'Importing ' + site.title + '…';
+			close.style.display = 'none';
+			list.innerHTML = '';
+
+			site.steps.forEach( function ( step ) {
+				var li = document.createElement( 'li' );
+				li.id = 'weavit-step-' + step.key;
+				li.style.cssText = 'padding:8px 0;border-bottom:1px solid #f0f0f1;display:flex;gap:10px;align-items:flex-start;';
+				li.innerHTML = '<span class="weavit-step-icon" style="flex-shrink:0;">○</span><span><strong>' + step.label + '</strong><div class="weavit-step-message" style="color:#787c82;font-size:12px;"></div></span>';
+				list.appendChild( li );
+			} );
+
+			modal.style.display = 'flex';
+
+			var i = 0;
+			function next() {
+				if ( i >= site.steps.length ) {
+					title.textContent = site.title + ' is ready.';
+					close.style.display = 'inline-block';
+					return;
+				}
+				var step = site.steps[ i ];
+				var li   = byId( 'weavit-step-' + step.key );
+				var icon = li.querySelector( '.weavit-step-icon' );
+				var msg  = li.querySelector( '.weavit-step-message' );
+				icon.textContent = '⏳';
+
+				var body = new URLSearchParams();
+				body.append( 'action', 'weavit_starter_site_step' );
+				body.append( 'nonce', nonce );
+				body.append( 'site', site.id );
+				body.append( 'step', step.key );
+
+				fetch( ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body } )
+					.then( function ( r ) { return r.json(); } )
+					.then( function ( res ) {
+						if ( res.success ) {
+							icon.textContent = '✅';
+							msg.textContent = ( res.data && res.data.message ) || 'Done.';
+						} else {
+							icon.textContent = '⚠';
+							msg.textContent = ( res.data && res.data.message ) || 'Something went wrong.';
+						}
+						i++;
+						next();
+					} )
+					.catch( function () {
+						icon.textContent = '⚠';
+						msg.textContent = 'Request failed.';
+						i++;
+						next();
+					} );
+			}
+			next();
+		}
+
+		var closeBtn = byId( 'weavit-import-modal-close' );
+		if ( closeBtn ) {
+			closeBtn.addEventListener( 'click', function () {
+				window.location.reload();
+			} );
+		}
+	} )();
+	</script>
 	<?php
 }
