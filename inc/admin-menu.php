@@ -31,10 +31,34 @@ define( 'BOOTG_ENABLED_MODULES_OPTION', 'bootg_enabled_modules' );
  */
 function bootg_module_registry() {
 	return array(
-		'content-types'  => array(
-			'label'       => 'Content Types',
-			'description' => 'Services, Integrations, Testimonials, Team Members, and Guides post types.',
+		'service'        => array(
+			'label'       => 'Services',
+			'description' => 'The Services post type and its archive/single pages.',
 			'icon'        => 'dashicons-portfolio',
+			'togglable'   => true,
+		),
+		'integration'    => array(
+			'label'       => 'Integrations',
+			'description' => 'The Integrations (partner platforms) post type and its archive/single pages.',
+			'icon'        => 'dashicons-admin-plugins',
+			'togglable'   => true,
+		),
+		'testimonial'    => array(
+			'label'       => 'Testimonials',
+			'description' => 'The Testimonials post type and its archive/single pages.',
+			'icon'        => 'dashicons-format-quote',
+			'togglable'   => true,
+		),
+		'team_member'    => array(
+			'label'       => 'Team Members',
+			'description' => 'The Team Members post type and its archive/single pages.',
+			'icon'        => 'dashicons-groups',
+			'togglable'   => true,
+		),
+		'guide'          => array(
+			'label'       => 'Guides',
+			'description' => 'The Guides post type and its archive/single pages.',
+			'icon'        => 'dashicons-book-alt',
 			'togglable'   => true,
 		),
 		'calculators'    => array(

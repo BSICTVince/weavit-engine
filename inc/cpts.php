@@ -2,6 +2,10 @@
 /**
  * Custom post types for the homepage/site content model.
  * Native `post` stays as Blog. No ACF, no builder plugin.
+ *
+ * Each one is its own toggleable module (see inc/admin-menu.php) rather
+ * than one bundled "Content Types" switch, so e.g. Testimonials can be
+ * turned off independently of Services.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,10 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'init', function () {
-	if ( ! bootg_module_enabled( 'content-types' ) ) {
+	if ( ! bootg_module_enabled( 'service' ) ) {
 		return;
 	}
-
 	register_post_type( 'service', array(
 		'labels'       => array(
 			'name'          => 'Services',
@@ -27,7 +30,12 @@ add_action( 'init', function () {
 		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
+} );
 
+add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'integration' ) ) {
+		return;
+	}
 	register_post_type( 'integration', array(
 		'labels'       => array(
 			'name'          => 'Integrations',
@@ -42,7 +50,12 @@ add_action( 'init', function () {
 		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
+} );
 
+add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'testimonial' ) ) {
+		return;
+	}
 	register_post_type( 'testimonial', array(
 		'labels'       => array(
 			'name'          => 'Testimonials',
@@ -57,7 +70,12 @@ add_action( 'init', function () {
 		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title' ),
 	) );
+} );
 
+add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'team_member' ) ) {
+		return;
+	}
 	register_post_type( 'team_member', array(
 		'labels'       => array(
 			'name'          => 'Team Members',
@@ -72,7 +90,12 @@ add_action( 'init', function () {
 		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 	) );
+} );
 
+add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'guide' ) ) {
+		return;
+	}
 	register_post_type( 'guide', array(
 		'labels'       => array(
 			'name'          => 'Guides',
