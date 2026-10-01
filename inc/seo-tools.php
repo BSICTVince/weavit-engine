@@ -17,7 +17,7 @@ function bootg_seo_tabs() {
 }
 
 add_action( 'admin_menu', function () {
-	$hook = add_menu_page( 'SEO', 'SEO', 'manage_options', 'bootg-seo', 'bootg_render_seo_page', 'dashicons-chart-line', '58.5' );
+	$hook = add_submenu_page( 'weavit', 'SEO', 'SEO Tools', 'manage_options', 'bootg-seo', 'bootg_render_seo_page' );
 	add_action( "load-$hook", 'bootg_handle_redirects_bulk_action_early' );
 } );
 

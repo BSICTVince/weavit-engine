@@ -22,6 +22,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'calculators' ) ) {
+		return;
+	}
 	add_shortcode( 'bootg_calculators_widget', 'bootg_render_calculators_shortcode' );
 	add_shortcode( 'bootg_calculators_index', 'bootg_render_calculators_index_shortcode' );
 	bootg_register_calculator_cpt();

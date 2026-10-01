@@ -41,7 +41,7 @@ function bootg_recaptcha_is_active() {
 }
 
 add_action( 'admin_menu', function () {
-	add_submenu_page( 'bootg-forms', 'reCAPTCHA', 'reCAPTCHA', 'manage_options', 'bootg-recaptcha-settings', 'bootg_render_recaptcha_settings_page' );
+	add_submenu_page( 'weavit', 'reCAPTCHA', 'Forms: reCAPTCHA', 'manage_options', 'bootg-recaptcha-settings', 'bootg_render_recaptcha_settings_page' );
 } );
 
 add_action( 'admin_init', function () {

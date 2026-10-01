@@ -39,15 +39,7 @@ function bootg_get_smtp_settings() {
 }
 
 add_action( 'admin_menu', function () {
-	add_menu_page(
-		'SMTP Settings',
-		'SMTP',
-		'manage_options',
-		'bootg-smtp-settings',
-		'bootg_render_smtp_settings_page',
-		'dashicons-email',
-		58 // Just under core's Appearance (60) — lands directly below the CPT menus (Services...Guides).
-	);
+	add_submenu_page( 'weavit', 'SMTP Settings', 'SMTP', 'manage_options', 'bootg-smtp-settings', 'bootg_render_smtp_settings_page' );
 } );
 
 add_action( 'admin_init', function () {

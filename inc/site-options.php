@@ -43,13 +43,7 @@ function bootg_get_option( $key ) {
 }
 
 add_action( 'admin_menu', function () {
-	add_theme_page(
-		'Site Options',
-		'Site Options',
-		'manage_options',
-		'bootg-site-options',
-		'bootg_render_options_page'
-	);
+	add_submenu_page( 'weavit', 'Site Options', 'Site Options', 'manage_options', 'bootg-site-options', 'bootg_render_options_page' );
 } );
 
 add_action( 'admin_init', function () {
@@ -138,7 +132,7 @@ function bootg_site_options_tabs() {
 }
 
 function bootg_site_options_tab_url( $tab ) {
-	return admin_url( 'themes.php?page=bootg-site-options&tab=' . $tab );
+	return admin_url( 'admin.php?page=bootg-site-options&tab=' . $tab );
 }
 
 function bootg_render_options_page() {

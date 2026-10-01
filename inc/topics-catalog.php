@@ -35,10 +35,12 @@ define( 'BOOTG_IMPORTED_TOPICS_OPTION', 'bootg_imported_topics' );
 define( 'BOOTG_TOPICS_CACHE_KEY', 'bootg_topics_github_cache' );
 
 add_action( 'admin_menu', function () {
-	add_menu_page( 'Topics Catalog', 'Topics Catalog', 'edit_posts', 'bootg-topics-catalog', 'bootg_render_topics_catalog_page', 'dashicons-networking', 26 );
-	add_submenu_page( 'bootg-topics-catalog', 'Topics Catalog', 'Catalog', 'edit_posts', 'bootg-topics-catalog', 'bootg_render_topics_catalog_page' );
-	add_submenu_page( 'bootg-topics-catalog', 'Add New Topic', 'Add New Topic', 'edit_posts', 'bootg-topics-catalog-new', 'bootg_render_topic_new_screen' );
-	add_submenu_page( 'bootg-topics-catalog', 'Topics Catalog Settings', 'Settings', 'manage_options', 'bootg-topics-catalog-settings', 'bootg_render_topics_settings_page' );
+	if ( ! bootg_module_enabled( 'topics-catalog' ) ) {
+		return;
+	}
+	add_submenu_page( 'weavit', 'Topics Catalog', 'Topics Catalog', 'edit_posts', 'bootg-topics-catalog', 'bootg_render_topics_catalog_page' );
+	add_submenu_page( 'weavit', 'Add New Topic', 'Topics: Add New', 'edit_posts', 'bootg-topics-catalog-new', 'bootg_render_topic_new_screen' );
+	add_submenu_page( 'weavit', 'Topics Catalog Settings', 'Topics: Settings', 'manage_options', 'bootg-topics-catalog-settings', 'bootg_render_topics_settings_page' );
 } );
 
 function bootg_topic_status_options() {

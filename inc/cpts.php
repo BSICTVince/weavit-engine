@@ -9,6 +9,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'init', function () {
+	if ( ! bootg_module_enabled( 'content-types' ) ) {
+		return;
+	}
 
 	register_post_type( 'service', array(
 		'labels'       => array(

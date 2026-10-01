@@ -11,18 +11,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'admin_menu', function () {
-	add_menu_page(
-		'Forms',
-		'Forms',
-		'manage_options',
-		'bootg-forms',
-		'bootg_render_forms_list_page',
-		'dashicons-feedback',
-		'58.7' // Between SMTP (58) and Appearance (60). String, not float — PHP truncates float array keys to int.
-	);
-	add_submenu_page( 'bootg-forms', 'All Forms', 'All Forms', 'manage_options', 'bootg-forms', 'bootg_render_forms_list_page' );
-	add_submenu_page( 'bootg-forms', 'Add New', 'Add New', 'manage_options', 'bootg-form-builder', 'bootg_render_form_builder_page' );
-	add_submenu_page( 'bootg-forms', 'Entries', 'Entries', 'manage_options', 'bootg-form-entries', 'bootg_render_form_entries_page' );
+	add_submenu_page( 'weavit', 'All Forms', 'Forms: All Forms', 'manage_options', 'bootg-forms', 'bootg_render_forms_list_page' );
+	add_submenu_page( 'weavit', 'Add New Form', 'Forms: Add New', 'manage_options', 'bootg-form-builder', 'bootg_render_form_builder_page' );
+	add_submenu_page( 'weavit', 'Form Entries', 'Forms: Entries', 'manage_options', 'bootg-form-entries', 'bootg_render_form_entries_page' );
 } );
 
 add_action( 'admin_enqueue_scripts', function () {
