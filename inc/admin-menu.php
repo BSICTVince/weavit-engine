@@ -67,6 +67,12 @@ function bootg_module_registry() {
 			'icon'        => 'dashicons-media-default',
 			'togglable'   => true,
 		),
+		'page-designer'  => array(
+			'label'       => 'Page Designer',
+			'description' => 'Native WordPress blocks for building pages — Section, Hero, Button — plus a Component tab in the editor to navigate them. Not a separate builder: just real blocks.',
+			'icon'        => 'dashicons-layout',
+			'togglable'   => true,
+		),
 		'calculators'    => array(
 			'label'       => 'Calculators',
 			'description' => '16 business + personal calculators with their own URLs, built in-house.',

@@ -56,6 +56,59 @@
 		} );
 	}
 
+	/** Flattens the block tree into a depth-tagged list of weavit/* blocks only. */
+	function collectWeavitBlocks( blocks, depth ) {
+		var found = [];
+		( blocks || [] ).forEach( function ( block ) {
+			if ( block.name && 0 === block.name.indexOf( 'weavit/' ) ) {
+				found.push( { clientId: block.clientId, name: block.name, depth: depth } );
+			}
+			if ( block.innerBlocks && block.innerBlocks.length ) {
+				found = found.concat( collectWeavitBlocks( block.innerBlocks, depth + 1 ) );
+			}
+		} );
+		return found;
+	}
+
+	function blockLabel( name ) {
+		return name.replace( 'weavit/', '' ).replace( /-/g, ' ' ).replace( /\b\w/g, function ( c ) { return c.toUpperCase(); } );
+	}
+
+	function ComponentNavigator() {
+		var blocks = useSelect( function ( select ) {
+			return select( 'core/block-editor' ).getBlocks();
+		}, [] );
+		var selectedClientId = useSelect( function ( select ) {
+			return select( 'core/block-editor' ).getSelectedBlockClientId();
+		}, [] );
+		var selectBlock = useDispatch( 'core/block-editor' ).selectBlock;
+
+		var items = collectWeavitBlocks( blocks, 0 );
+
+		if ( ! items.length ) {
+			return el( 'p', { style: { padding: '16px', color: '#757575' } }, 'No Weavit components on this page yet — add a Section, Hero, or Button block from the inserter.' );
+		}
+
+		return el( 'ul', { style: { listStyle: 'none', margin: 0, padding: '8px' } },
+			items.map( function ( item ) {
+				var isSelected = item.clientId === selectedClientId;
+				return el( 'li', { key: item.clientId, style: { paddingLeft: ( item.depth * 16 ) + 'px' } },
+					el( 'button', {
+						type: 'button',
+						onClick: function () { selectBlock( item.clientId ); },
+						style: {
+							display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: '2px',
+							border: 0, borderRadius: '4px', cursor: 'pointer',
+							background: isSelected ? '#2271b1' : 'transparent',
+							color: isSelected ? '#fff' : '#1e1e1e',
+							fontWeight: isSelected ? 600 : 400,
+						},
+					}, blockLabel( item.name ) )
+				);
+			} )
+		);
+	}
+
 	function WeavitPanel() {
 		var meta = useSelect( function ( select ) {
 			return select( 'core/editor' ).getEditedPostAttribute( 'meta' ) || {};
@@ -68,17 +121,23 @@
 			editPost( { meta: Object.assign( {}, meta, next ) } );
 		}
 
-		var tabKeys = Object.keys( tabs );
+		function renderTabBody( tabKey ) {
+			var tab = tabs[ tabKey ];
+			if ( 'navigator' === tab.type ) {
+				return el( ComponentNavigator );
+			}
+			return el( 'div', { style: { padding: '16px' } }, FieldControls( tab.fields, meta, setField ) );
+		}
 
-		var padding = { padding: '16px' };
+		var tabKeys = Object.keys( tabs );
 
 		var body = tabKeys.length > 1
 			? el( TabPanel, {
 				tabs: tabKeys.map( function ( key ) { return { name: key, title: tabs[ key ].label }; } ),
 			}, function ( tab ) {
-				return el( 'div', { style: padding }, FieldControls( tabs[ tab.name ].fields, meta, setField ) );
+				return renderTabBody( tab.name );
 			} )
-			: el( 'div', { style: padding }, FieldControls( tabs[ tabKeys[ 0 ] ].fields, meta, setField ) );
+			: renderTabBody( tabKeys[ 0 ] );
 
 		return el( PluginSidebar, { name: 'weavit-details', title: 'Weavit', icon: icon, className: 'weavit-editor-panel' }, body );
 	}

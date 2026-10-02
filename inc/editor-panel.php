@@ -25,7 +25,7 @@ add_action( 'enqueue_block_editor_assets', function () {
 	wp_enqueue_script(
 		'weavit-editor-panel',
 		WEAVIT_ENGINE_URI . 'assets/js/editor-panel.js',
-		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data' ),
+		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-block-editor' ),
 		WEAVIT_ENGINE_VERSION,
 		true
 	);
