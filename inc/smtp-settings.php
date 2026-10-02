@@ -103,14 +103,16 @@ add_filter( 'wp_mail_from_name', function ( $name ) {
 	return ( ( $s['enabled'] || $s['from_enabled'] ) && $s['from_name'] ) ? $s['from_name'] : $name;
 } );
 
-/** Send Test Email */
+/** Send Test Email — to whatever address is entered, not just the current admin's own. */
 add_action( 'admin_post_bootg_smtp_test', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( 'Not allowed.' );
 	}
 	check_admin_referer( 'bootg_smtp_test' );
 
-	$to  = wp_get_current_user()->user_email;
+	$posted_to = isset( $_POST['test_to'] ) ? sanitize_email( wp_unslash( $_POST['test_to'] ) ) : '';
+	$to        = is_email( $posted_to ) ? $posted_to : wp_get_current_user()->user_email;
+
 	$err = null;
 	add_action( 'wp_mail_failed', function ( $wp_error ) use ( &$err ) {
 		$err = $wp_error->get_error_message();
@@ -120,7 +122,7 @@ add_action( 'admin_post_bootg_smtp_test', function () {
 
 	$redirect = add_query_arg(
 		$sent
-			? array( 'page' => 'bootg-smtp-settings', 'bootg_smtp_test' => 'success' )
+			? array( 'page' => 'bootg-smtp-settings', 'bootg_smtp_test' => 'success', 'bootg_smtp_test_to' => rawurlencode( $to ) )
 			: array( 'page' => 'bootg-smtp-settings', 'bootg_smtp_test' => 'error', 'bootg_smtp_test_msg' => rawurlencode( $err ?: 'Unknown error' ) ),
 		admin_url( 'admin.php' )
 	);
@@ -128,20 +130,79 @@ add_action( 'admin_post_bootg_smtp_test', function () {
 	exit;
 } );
 
+/**
+ * Persistent error log — every failed wp_mail() call site-wide (not just
+ * the Send Test Email button), so a client can see why a contact-form
+ * notification or a newsletter broadcast silently didn't arrive without
+ * needing server log access. Capped at the last 50, newest first.
+ */
+define( 'BOOTG_SMTP_LOG_OPTION', 'bootg_smtp_error_log' );
+
+add_action( 'wp_mail_failed', function ( $wp_error ) {
+	$data = $wp_error->get_error_data( 'wp_mail_failed' );
+	$to   = $data['to'] ?? '';
+
+	$log = get_option( BOOTG_SMTP_LOG_OPTION, array() );
+	array_unshift( $log, array(
+		'time'    => current_time( 'mysql' ),
+		'to'      => is_array( $to ) ? implode( ', ', $to ) : (string) $to,
+		'subject' => $data['subject'] ?? '',
+		'message' => $wp_error->get_error_message(),
+	) );
+	update_option( BOOTG_SMTP_LOG_OPTION, array_slice( $log, 0, 50 ), false );
+} );
+
+add_action( 'admin_post_bootg_smtp_clear_log', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	check_admin_referer( 'bootg_smtp_clear_log' );
+	delete_option( BOOTG_SMTP_LOG_OPTION );
+	wp_safe_redirect( add_query_arg( array( 'page' => 'bootg-smtp-settings', 'tab' => 'log', 'cleared' => 1 ), admin_url( 'admin.php' ) ) );
+	exit;
+} );
+
+function bootg_smtp_tabs() {
+	return array(
+		'general' => 'General',
+		'log'     => 'Error Log',
+	);
+}
+
 function bootg_render_smtp_settings_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	$s        = bootg_get_smtp_settings();
-	$presets  = bootg_smtp_provider_presets();
+	$tabs    = bootg_smtp_tabs();
+	$current = isset( $_GET['tab'] ) && isset( $tabs[ $_GET['tab'] ] ) ? sanitize_key( $_GET['tab'] ) : 'general'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only tab selector.
 	?>
 	<div class="wrap">
 		<h1>SMTP Settings</h1>
+		<h2 class="nav-tab-wrapper">
+			<?php foreach ( $tabs as $key => $label ) : ?>
+				<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'bootg-smtp-settings', 'tab' => $key ), admin_url( 'admin.php' ) ) ); ?>" class="nav-tab <?php echo $current === $key ? 'nav-tab-active' : ''; ?>"><?php echo esc_html( $label ); ?></a>
+			<?php endforeach; ?>
+		</h2>
+		<?php
+		if ( 'log' === $current ) {
+			bootg_render_smtp_log_tab();
+		} else {
+			bootg_render_smtp_general_tab();
+		}
+		?>
+	</div>
+	<?php
+}
+
+function bootg_render_smtp_general_tab() {
+	$s       = bootg_get_smtp_settings();
+	$presets = bootg_smtp_provider_presets();
+	?>
 		<p class="description">Configure real outgoing mail (Gmail, Outlook, or any hosting provider's SMTP) so <code>wp_mail()</code> — used by the Contact form and WordPress notifications — actually delivers. No plugin: this writes directly into PHPMailer via <code>phpmailer_init</code>.</p>
 
 		<?php if ( isset( $_GET['bootg_smtp_test'] ) ) : ?>
 			<?php if ( 'success' === $_GET['bootg_smtp_test'] ) : ?>
-				<div class="notice notice-success is-dismissible"><p>Test email sent to <?php echo esc_html( wp_get_current_user()->user_email ); ?> — check your inbox (and spam folder).</p></div>
+				<div class="notice notice-success is-dismissible"><p>Test email sent to <?php echo esc_html( wp_unslash( $_GET['bootg_smtp_test_to'] ?? wp_get_current_user()->user_email ) ); ?> — check the inbox (and spam folder). If it doesn't arrive, check the <a href="<?php echo esc_url( add_query_arg( array( 'page' => 'bootg-smtp-settings', 'tab' => 'log' ), admin_url( 'admin.php' ) ) ); ?>">Error Log</a> tab.</p></div>
 			<?php else : ?>
 				<div class="notice notice-error is-dismissible"><p>Test email failed: <?php echo esc_html( wp_unslash( $_GET['bootg_smtp_test_msg'] ?? 'Unknown error' ) ); ?></p></div>
 			<?php endif; ?>
@@ -215,17 +276,20 @@ function bootg_render_smtp_settings_page() {
 			<?php submit_button( 'Save SMTP Settings' ); ?>
 		</form>
 
-		<?php if ( ( $s['enabled'] && $s['host'] && $s['username'] ) || $s['from_enabled'] ) : ?>
-			<hr>
-			<h2>Send Test Email</h2>
-			<p class="description">Sends a test message to your account email (<?php echo esc_html( wp_get_current_user()->user_email ); ?>) using the saved settings above.</p>
-			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-				<?php wp_nonce_field( 'bootg_smtp_test' ); ?>
-				<input type="hidden" name="action" value="bootg_smtp_test">
-				<?php submit_button( 'Send Test Email', 'secondary', 'submit', false ); ?>
-			</form>
-		<?php endif; ?>
-	</div>
+		<hr>
+		<h2>Send Test Email</h2>
+		<p class="description">Sends a test message to any address you like, using the saved settings above — handy for checking it reaches a real inbox, not just your own admin account.</p>
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
+			<?php wp_nonce_field( 'bootg_smtp_test' ); ?>
+			<input type="hidden" name="action" value="bootg_smtp_test">
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><label for="smtp_test_to">Send to</label></th>
+					<td><input type="email" id="smtp_test_to" name="test_to" value="<?php echo esc_attr( wp_get_current_user()->user_email ); ?>" class="regular-text" required></td>
+				</tr>
+			</table>
+			<?php submit_button( 'Send Test Email', 'secondary', 'submit', false ); ?>
+		</form>
 
 	<script>
 	(function () {
@@ -243,5 +307,47 @@ function bootg_render_smtp_settings_page() {
 		});
 	})();
 	</script>
+	<?php
+}
+
+function bootg_render_smtp_log_tab() {
+	$log = get_option( BOOTG_SMTP_LOG_OPTION, array() );
+	?>
+	<p class="description">Every failed <code>wp_mail()</code> call site-wide — Contact form notifications, newsletter broadcasts, WordPress's own emails — not just the Send Test Email button. Newest first, last 50 kept.</p>
+
+	<?php if ( isset( $_GET['cleared'] ) ) : ?>
+		<div class="notice notice-success is-dismissible"><p>Error log cleared.</p></div>
+	<?php endif; ?>
+
+	<?php if ( ! $log ) : ?>
+		<p><em>No mail errors logged. That's a good sign.</em></p>
+	<?php else : ?>
+		<table class="widefat striped" style="max-width:900px;">
+			<thead>
+				<tr>
+					<th style="width:160px;">Time</th>
+					<th style="width:220px;">To</th>
+					<th>Subject</th>
+					<th>Error</th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $log as $entry ) : ?>
+					<tr>
+						<td><?php echo esc_html( $entry['time'] ); ?></td>
+						<td><?php echo esc_html( $entry['to'] ); ?></td>
+						<td><?php echo esc_html( $entry['subject'] ); ?></td>
+						<td><?php echo esc_html( $entry['message'] ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="margin-top:16px;">
+			<?php wp_nonce_field( 'bootg_smtp_clear_log' ); ?>
+			<input type="hidden" name="action" value="bootg_smtp_clear_log">
+			<?php submit_button( 'Clear Log', 'secondary', 'submit', false ); ?>
+		</form>
+	<?php endif; ?>
 	<?php
 }
