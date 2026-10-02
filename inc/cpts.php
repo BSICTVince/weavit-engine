@@ -85,7 +85,7 @@ add_action( 'init', function () {
 		),
 		'public'       => true,
 		'show_in_rest' => true,
-		'has_archive'  => 'team',
+		'has_archive'  => false,
 		'rewrite'      => array( 'slug' => 'team-members' ),
 		'show_in_menu' => 'weavit',
 		'supports'     => array( 'title', 'editor', 'excerpt', 'thumbnail', 'page-attributes' ),
