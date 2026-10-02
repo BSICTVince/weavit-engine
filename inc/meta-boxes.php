@@ -1,7 +1,7 @@
 <?php
 /**
- * Custom meta boxes for the CPTs — plain core Meta Boxes API
- * (add_meta_box / register_post_meta), no ACF.
+ * Custom fields for the CPTs — register_post_meta() (show_in_rest) plus
+ * the Weavit toolbar icon/sidebar panel (below) as the editing UI. No ACF.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -110,69 +110,8 @@ add_action( 'enqueue_block_editor_assets', function () {
 	);
 } );
 
-add_action( 'add_meta_boxes', function () {
-	foreach ( array( 'service', 'integration', 'team_member', 'guide' ) as $post_type ) {
-		add_meta_box(
-			'bootg_' . $post_type . '_fields',
-			'Details',
-			'bootg_render_meta_box',
-			$post_type,
-			'normal',
-			'high'
-		);
-	}
-} );
-
-function bootg_render_meta_box( $post ) {
-	wp_nonce_field( 'bootg_save_meta', 'bootg_meta_nonce' );
-	$fields = bootg_meta_fields( $post->post_type );
-	echo '<table class="form-table">';
-	foreach ( $fields as $key => $field ) {
-		list( $label, $type ) = $field;
-		$value = get_post_meta( $post->ID, $key, true );
-		echo '<tr><th style="width:220px;"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td>';
-		switch ( $type ) {
-			case 'textarea':
-				echo '<textarea id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" rows="3" class="large-text">' . esc_textarea( $value ) . '</textarea>';
-				break;
-			case 'number':
-				echo '<input type="number" min="1" max="5" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '" class="small-text">';
-				break;
-			case 'checkbox':
-				echo '<input type="checkbox" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="1" ' . checked( (bool) $value, true, false ) . '>';
-				break;
-			case 'url':
-				echo '<input type="url" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '" class="regular-text">';
-				break;
-			default:
-				echo '<input type="text" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '" class="regular-text">';
-		}
-		echo '</td></tr>';
-	}
-	echo '</table>';
-}
-
-add_action( 'save_post', function ( $post_id ) {
-	if ( ! isset( $_POST['bootg_meta_nonce'] ) || ! wp_verify_nonce( $_POST['bootg_meta_nonce'], 'bootg_save_meta' ) ) {
-		return;
-	}
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
-	$post_type = get_post_type( $post_id );
-	$fields    = bootg_meta_fields( $post_type );
-	if ( ! $fields || ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
-	foreach ( $fields as $key => $field ) {
-		$type      = $field[1];
-		$sanitizer = bootg_meta_sanitizer( $type );
-		if ( 'checkbox' === $type ) {
-			update_post_meta( $post_id, $key, isset( $_POST[ $key ] ) ? 1 : 0 );
-			continue;
-		}
-		if ( isset( $_POST[ $key ] ) ) {
-			update_post_meta( $post_id, $key, call_user_func( $sanitizer, wp_unslash( $_POST[ $key ] ) ) );
-		}
-	}
-} );
+// The classic "Details" meta box (add_meta_box/save_post) that used to
+// live here has been replaced by the Weavit toolbar icon + sidebar panel
+// above — same fields, same register_post_meta(show_in_rest) data, saved
+// through the block editor's own REST request instead of a second $_POST
+// handler. Removed instead of left duplicated.
