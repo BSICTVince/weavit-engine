@@ -28,63 +28,35 @@ add_action( 'init', function () {
 	}
 } );
 
-add_action( 'add_meta_boxes', function () {
-	foreach ( bootg_seo_post_types() as $post_type ) {
-		add_meta_box( 'bootg_seo', 'SEO', 'bootg_render_seo_meta_box', $post_type, 'normal', 'high' );
+// Contributes an "SEO" tab to the Weavit sidebar panel (inc/editor-panel.php)
+// instead of its own classic meta box — same register_post_meta() fields above.
+add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
+	if ( ! in_array( $post_type, bootg_seo_post_types(), true ) ) {
+		return $tabs;
 	}
-} );
 
-function bootg_render_seo_meta_box( $post ) {
-	wp_nonce_field( 'bootg_save_seo', 'bootg_seo_nonce' );
-	$title       = get_post_meta( $post->ID, 'meta_title', true );
-	$description = get_post_meta( $post->ID, 'meta_description', true );
-	$keywords    = get_post_meta( $post->ID, 'meta_keywords', true );
-	?>
-	<table class="form-table">
-		<tr>
-			<th style="width:220px;"><label for="meta_title">Meta Title</label></th>
-			<td>
-				<input type="text" id="meta_title" name="meta_title" value="<?php echo esc_attr( $title ); ?>" class="large-text">
-				<p class="description">Leave blank to use the page title. Shown in the browser tab and search results.</p>
-			</td>
-		</tr>
-		<tr>
-			<th><label for="meta_description">Meta Description</label></th>
-			<td>
-				<textarea id="meta_description" name="meta_description" rows="3" class="large-text"><?php echo esc_textarea( $description ); ?></textarea>
-				<p class="description">Shown under the title in search results. Aim for ~150–160 characters.</p>
-			</td>
-		</tr>
-		<tr>
-			<th><label for="meta_keywords">Keywords</label></th>
-			<td>
-				<input type="text" id="meta_keywords" name="meta_keywords" value="<?php echo esc_attr( $keywords ); ?>" class="large-text">
-				<p class="description">Comma-separated. Largely ignored by modern search engines, kept for completeness.</p>
-			</td>
-		</tr>
-	</table>
-	<?php
-}
-
-add_action( 'save_post', function ( $post_id ) {
-	if ( ! isset( $_POST['bootg_seo_nonce'] ) || ! wp_verify_nonce( $_POST['bootg_seo_nonce'], 'bootg_save_seo' ) ) {
-		return;
-	}
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
-	if ( ! in_array( get_post_type( $post_id ), bootg_seo_post_types(), true ) || ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
-	foreach ( array( 'meta_title', 'meta_keywords' ) as $key ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			update_post_meta( $post_id, $key, sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) );
-		}
-	}
-	if ( isset( $_POST['meta_description'] ) ) {
-		update_post_meta( $post_id, 'meta_description', sanitize_textarea_field( wp_unslash( $_POST['meta_description'] ) ) );
-	}
-} );
+	$tabs['seo'] = array(
+		'label'  => 'SEO',
+		'fields' => array(
+			'meta_title'       => array(
+				'label' => 'Meta Title',
+				'type'  => 'text',
+				'help'  => 'Leave blank to use the page title. Shown in the browser tab and search results.',
+			),
+			'meta_description' => array(
+				'label' => 'Meta Description',
+				'type'  => 'textarea',
+				'help'  => 'Shown under the title in search results. Aim for ~150–160 characters.',
+			),
+			'meta_keywords'    => array(
+				'label' => 'Keywords',
+				'type'  => 'text',
+				'help'  => 'Comma-separated. Largely ignored by modern search engines, kept for completeness.',
+			),
+		),
+	);
+	return $tabs;
+}, 10, 2 );
 
 /** Output: <title> override */
 add_filter( 'pre_get_document_title', function ( $title ) {

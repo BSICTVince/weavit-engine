@@ -77,18 +77,13 @@ function bootg_meta_sanitizer( $type ) {
 	}
 }
 
-/**
- * A "Weavit" icon in the block editor toolbar (next to the default WP
- * tabs, before Save — same spot RankMath puts its SEO icon) opening a
- * sidebar panel for this post type's fields. Same field map/data as the
- * classic meta box below — see assets/js/editor-panel.js.
- */
-add_action( 'enqueue_block_editor_assets', function () {
-	$screen    = get_current_screen();
-	$post_type = $screen ? $screen->post_type : '';
-	$fields    = bootg_meta_fields( $post_type );
+// Contributes a "Details" tab to the Weavit sidebar panel (inc/editor-panel.php)
+// instead of registering its own classic meta box — same fields, saved
+// through the block editor's own REST request via register_post_meta() above.
+add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
+	$fields = bootg_meta_fields( $post_type );
 	if ( ! $fields ) {
-		return;
+		return $tabs;
 	}
 
 	$js_fields = array();
@@ -96,22 +91,6 @@ add_action( 'enqueue_block_editor_assets', function () {
 		$js_fields[ $key ] = array( 'label' => $field[0], 'type' => $field[1] );
 	}
 
-	wp_enqueue_script(
-		'weavit-editor-panel',
-		WEAVIT_ENGINE_URI . 'assets/js/editor-panel.js',
-		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data' ),
-		WEAVIT_ENGINE_VERSION,
-		true
-	);
-	wp_add_inline_script(
-		'weavit-editor-panel',
-		'window.weavitEditorPanel = ' . wp_json_encode( array( 'fields' => $js_fields ) ) . ';',
-		'before'
-	);
-} );
-
-// The classic "Details" meta box (add_meta_box/save_post) that used to
-// live here has been replaced by the Weavit toolbar icon + sidebar panel
-// above — same fields, same register_post_meta(show_in_rest) data, saved
-// through the block editor's own REST request instead of a second $_POST
-// handler. Removed instead of left duplicated.
+	$tabs['details'] = array( 'label' => 'Details', 'fields' => $js_fields );
+	return $tabs;
+}, 10, 2 );

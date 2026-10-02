@@ -1,12 +1,14 @@
 /**
  * A "Weavit" icon in the block editor's top toolbar (next to the default
  * WP tabs, before Save — same pattern as RankMath's SEO icon) that opens
- * a sidebar panel for this post type's custom fields (same data as the
- * classic "Details" meta box below the content — this is just a faster
- * way to reach it, not a replacement).
+ * a single tabbed sidebar panel. Each tab (Details, SEO, …) is
+ * contributed by a different plugin file via the `weavit_editor_panel_tabs`
+ * PHP filter (inc/editor-panel.php) instead of each registering its own
+ * classic meta box — one editing surface per post, not several stacked
+ * below the content.
  */
 ( function ( wp ) {
-	if ( ! window.weavitEditorPanel || ! window.weavitEditorPanel.fields ) {
+	if ( ! window.weavitEditorPanel || ! window.weavitEditorPanel.tabs ) {
 		return;
 	}
 
@@ -14,16 +16,45 @@
 	var registerPlugin            = wp.plugins.registerPlugin;
 	var PluginSidebar             = wp.editPost.PluginSidebar;
 	var PluginSidebarMoreMenuItem = wp.editPost.PluginSidebarMoreMenuItem;
-	var PanelBody                 = wp.components.PanelBody;
 	var PanelRow                  = wp.components.PanelRow;
+	var TabPanel                  = wp.components.TabPanel;
 	var TextControl                = wp.components.TextControl;
 	var TextareaControl            = wp.components.TextareaControl;
 	var CheckboxControl            = wp.components.CheckboxControl;
 	var useSelect                 = wp.data.useSelect;
 	var useDispatch               = wp.data.useDispatch;
 
-	var fields = window.weavitEditorPanel.fields;
-	var icon   = 'admin-generic'; // Same dashicon as the Weavit admin menu, for recognizability.
+	var tabs = window.weavitEditorPanel.tabs;
+	var icon = 'admin-generic'; // Same dashicon as the Weavit admin menu, for recognizability.
+
+	function FieldControls( fields, meta, setField ) {
+		return Object.keys( fields ).map( function ( key ) {
+			var field = fields[ key ];
+
+			if ( 'checkbox' === field.type ) {
+				return el( PanelRow, { key: key },
+					el( CheckboxControl, {
+						label: field.label,
+						help: field.help,
+						checked: !! meta[ key ],
+						onChange: function ( value ) { setField( key, value ); },
+					} )
+				);
+			}
+
+			var Control = 'textarea' === field.type ? TextareaControl : TextControl;
+
+			return el( PanelRow, { key: key },
+				el( Control, {
+					label: field.label,
+					help: field.help,
+					value: meta[ key ] || '',
+					type: 'url' === field.type ? 'url' : undefined,
+					onChange: function ( value ) { setField( key, value ); },
+				} )
+			);
+		} );
+	}
 
 	function WeavitPanel() {
 		var meta = useSelect( function ( select ) {
@@ -37,34 +68,19 @@
 			editPost( { meta: Object.assign( {}, meta, next ) } );
 		}
 
-		var rows = Object.keys( fields ).map( function ( key ) {
-			var field = fields[ key ];
+		var tabKeys = Object.keys( tabs );
 
-			if ( 'checkbox' === field.type ) {
-				return el( PanelRow, { key: key },
-					el( CheckboxControl, {
-						label: field.label,
-						checked: !! meta[ key ],
-						onChange: function ( value ) { setField( key, value ); },
-					} )
-				);
-			}
+		var padding = { padding: '16px' };
 
-			var Control = 'textarea' === field.type ? TextareaControl : TextControl;
+		var body = tabKeys.length > 1
+			? el( TabPanel, {
+				tabs: tabKeys.map( function ( key ) { return { name: key, title: tabs[ key ].label }; } ),
+			}, function ( tab ) {
+				return el( 'div', { style: padding }, FieldControls( tabs[ tab.name ].fields, meta, setField ) );
+			} )
+			: el( 'div', { style: padding }, FieldControls( tabs[ tabKeys[ 0 ] ].fields, meta, setField ) );
 
-			return el( PanelRow, { key: key },
-				el( Control, {
-					label: field.label,
-					value: meta[ key ] || '',
-					type: 'url' === field.type ? 'url' : undefined,
-					onChange: function ( value ) { setField( key, value ); },
-				} )
-			);
-		} );
-
-		return el( PluginSidebar, { name: 'weavit-details', title: 'Weavit', icon: icon },
-			el( PanelBody, {}, rows )
-		);
+		return el( PluginSidebar, { name: 'weavit-details', title: 'Weavit', icon: icon, className: 'weavit-editor-panel' }, body );
 	}
 
 	registerPlugin( 'weavit-editor-panel', {
