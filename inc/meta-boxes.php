@@ -77,6 +77,39 @@ function bootg_meta_sanitizer( $type ) {
 	}
 }
 
+/**
+ * A "Weavit" icon in the block editor toolbar (next to the default WP
+ * tabs, before Save — same spot RankMath puts its SEO icon) opening a
+ * sidebar panel for this post type's fields. Same field map/data as the
+ * classic meta box below — see assets/js/editor-panel.js.
+ */
+add_action( 'enqueue_block_editor_assets', function () {
+	$screen    = get_current_screen();
+	$post_type = $screen ? $screen->post_type : '';
+	$fields    = bootg_meta_fields( $post_type );
+	if ( ! $fields ) {
+		return;
+	}
+
+	$js_fields = array();
+	foreach ( $fields as $key => $field ) {
+		$js_fields[ $key ] = array( 'label' => $field[0], 'type' => $field[1] );
+	}
+
+	wp_enqueue_script(
+		'weavit-editor-panel',
+		WEAVIT_ENGINE_URI . 'assets/js/editor-panel.js',
+		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data' ),
+		WEAVIT_ENGINE_VERSION,
+		true
+	);
+	wp_add_inline_script(
+		'weavit-editor-panel',
+		'window.weavitEditorPanel = ' . wp_json_encode( array( 'fields' => $js_fields ) ) . ';',
+		'before'
+	);
+} );
+
 add_action( 'add_meta_boxes', function () {
 	foreach ( array( 'service', 'integration', 'team_member', 'guide' ) as $post_type ) {
 		add_meta_box(
