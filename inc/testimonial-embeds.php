@@ -162,9 +162,9 @@ function bootg_render_testimonial_card( $post ) {
 				<?php echo str_repeat( $star, max( 1, min( 5, $rating ) ) ); // phpcs:ignore ?>
 			</div>
 			<blockquote class="text-2xl sm:text-3xl font-display font-bold text-navy leading-snug mb-7">&ldquo;<?php echo esc_html( $quote ); ?>&rdquo;</blockquote>
-			<p class="font-bold text-charcoal"><?php echo esc_html( $name ); ?></p>
+			<p class="font-bold text-ink"><?php echo esc_html( $name ); ?></p>
 			<?php if ( $business ) : ?>
-				<p class="text-sm text-slate-400 mb-8"><?php echo esc_html( $business ); ?></p>
+				<p class="text-sm text-ink mb-8"><?php echo esc_html( $business ); ?></p>
 			<?php endif; ?>
 			<a href="<?php echo esc_url( get_post_type_archive_link( 'testimonial' ) ?: home_url( '/testimonials/' ) ); ?>" class="btn btn-outline px-6 py-3 text-sm" data-testid="spotlight-more-btn">Read More Stories</a>
 		</div>
