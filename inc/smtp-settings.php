@@ -282,12 +282,10 @@ function bootg_render_smtp_general_tab() {
 		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
 			<?php wp_nonce_field( 'bootg_smtp_test' ); ?>
 			<input type="hidden" name="action" value="bootg_smtp_test">
-			<table class="form-table" role="presentation">
-				<tr>
-					<th><label for="smtp_test_to">Send to</label></th>
-					<td><input type="email" id="smtp_test_to" name="test_to" value="" placeholder="name@example.com" class="regular-text" required></td>
-				</tr>
-			</table>
+			<p>
+				<label for="smtp_test_to" class="screen-reader-text">Send to</label>
+				<input type="email" id="smtp_test_to" name="test_to" value="" placeholder="name@example.com" class="regular-text" required>
+			</p>
 			<?php submit_button( 'Send Test Email', 'secondary', 'submit', false ); ?>
 		</form>
 
