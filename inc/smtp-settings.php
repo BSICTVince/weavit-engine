@@ -22,15 +22,22 @@ function bootg_smtp_provider_presets() {
 
 function bootg_smtp_defaults() {
 	return array(
-		'enabled'    => 0,
-		'provider'   => 'custom',
-		'host'       => '',
-		'port'       => 587,
-		'encryption' => 'tls',
-		'username'   => '',
-		'password'   => '',
-		'from_email' => get_option( 'admin_email' ),
-		'from_name'  => get_bloginfo( 'name' ),
+		'enabled'      => 0,
+		// Separate from 'enabled' (full SMTP relay) on purpose: a From address
+		// on the SITE'S OWN domain (e.g. support@thissite.com) passes SPF via
+		// the server's default mailer without needing external SMTP auth at
+		// all — this lets that case work without forcing a relay setup. New
+		// key, defaults off, so no existing site's From header changes on
+		// update.
+		'from_enabled' => 0,
+		'provider'     => 'custom',
+		'host'         => '',
+		'port'         => 587,
+		'encryption'   => 'tls',
+		'username'     => '',
+		'password'     => '',
+		'from_email'   => get_option( 'admin_email' ),
+		'from_name'    => get_bloginfo( 'name' ),
 	);
 }
 
@@ -51,12 +58,13 @@ function bootg_sanitize_smtp_settings( $input ) {
 	$password = trim( (string) ( $input['password'] ?? '' ) );
 
 	return array(
-		'enabled'    => empty( $input['enabled'] ) ? 0 : 1,
-		'provider'   => in_array( $input['provider'] ?? '', array( 'gmail', 'outlook', 'custom' ), true ) ? $input['provider'] : 'custom',
-		'host'       => sanitize_text_field( $input['host'] ?? '' ),
-		'port'       => absint( $input['port'] ?? 587 ) ?: 587,
-		'encryption' => in_array( $input['encryption'] ?? '', array( 'tls', 'ssl', '' ), true ) ? $input['encryption'] : 'tls',
-		'username'   => sanitize_text_field( $input['username'] ?? '' ),
+		'enabled'      => empty( $input['enabled'] ) ? 0 : 1,
+		'from_enabled' => empty( $input['from_enabled'] ) ? 0 : 1,
+		'provider'     => in_array( $input['provider'] ?? '', array( 'gmail', 'outlook', 'custom' ), true ) ? $input['provider'] : 'custom',
+		'host'         => sanitize_text_field( $input['host'] ?? '' ),
+		'port'         => absint( $input['port'] ?? 587 ) ?: 587,
+		'encryption'   => in_array( $input['encryption'] ?? '', array( 'tls', 'ssl', '' ), true ) ? $input['encryption'] : 'tls',
+		'username'     => sanitize_text_field( $input['username'] ?? '' ),
 		// Blank password field on save = "keep the existing one" (so it's never
 		// re-displayed in the form, but you're not forced to re-enter it every save).
 		'password'   => '' !== $password ? $password : $existing['password'],
@@ -87,12 +95,12 @@ add_action( 'phpmailer_init', function ( $phpmailer ) {
 
 add_filter( 'wp_mail_from', function ( $email ) {
 	$s = bootg_get_smtp_settings();
-	return ( $s['enabled'] && $s['from_email'] ) ? $s['from_email'] : $email;
+	return ( ( $s['enabled'] || $s['from_enabled'] ) && $s['from_email'] ) ? $s['from_email'] : $email;
 } );
 
 add_filter( 'wp_mail_from_name', function ( $name ) {
 	$s = bootg_get_smtp_settings();
-	return ( $s['enabled'] && $s['from_name'] ) ? $s['from_name'] : $name;
+	return ( ( $s['enabled'] || $s['from_enabled'] ) && $s['from_name'] ) ? $s['from_name'] : $name;
 } );
 
 /** Send Test Email */
@@ -196,11 +204,18 @@ function bootg_render_smtp_settings_page() {
 					<th><label for="smtp_from_name">From Name</label></th>
 					<td><input type="text" id="smtp_from_name" name="<?php echo esc_attr( BOOTG_SMTP_OPTION ); ?>[from_name]" value="<?php echo esc_attr( $s['from_name'] ); ?>" class="regular-text"></td>
 				</tr>
+				<tr>
+					<th><label for="smtp_from_enabled">Use this From address without SMTP</label></th>
+					<td>
+						<label><input type="checkbox" id="smtp_from_enabled" name="<?php echo esc_attr( BOOTG_SMTP_OPTION ); ?>[from_enabled]" value="1" <?php checked( $s['from_enabled'] ); ?>> Apply the From Email/Name above even if "Enable custom SMTP" is off</label>
+						<p class="description">Safe for an address on this site's own domain (e.g. <code>support@<?php echo esc_html( wp_parse_url( home_url(), PHP_URL_HOST ) ); ?></code>) — it still sends through the server's normal mailer, just with a different From header. For an address on a <em>different</em> domain (Gmail, your real business email, etc.), use "Enable custom SMTP" above instead, or most providers will flag it as spam.</p>
+					</td>
+				</tr>
 			</table>
 			<?php submit_button( 'Save SMTP Settings' ); ?>
 		</form>
 
-		<?php if ( $s['enabled'] && $s['host'] && $s['username'] ) : ?>
+		<?php if ( ( $s['enabled'] && $s['host'] && $s['username'] ) || $s['from_enabled'] ) : ?>
 			<hr>
 			<h2>Send Test Email</h2>
 			<p class="description">Sends a test message to your account email (<?php echo esc_html( wp_get_current_user()->user_email ); ?>) using the saved settings above.</p>
