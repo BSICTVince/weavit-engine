@@ -3,7 +3,7 @@
  * Plugin Name: Weavit Engine
  * Plugin URI: https://vinceorodazo.com
  * Description: Core reusable engine — custom post types, meta boxes, SEO fields, native SMTP, Site Options, and a custom Forms engine (builder, entries, notifications) — that Weavit-built themes are built on top of. No page builder, no ACF.
- * Version: 0.1.22
+ * Version: 0.1.23
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Weavit | Vince O. Dazo
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WEAVIT_ENGINE_VERSION', '0.1.22' );
+define( 'WEAVIT_ENGINE_VERSION', '0.1.23' );
 define( 'WEAVIT_ENGINE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WEAVIT_ENGINE_URI', plugin_dir_url( __FILE__ ) );
 
@@ -32,6 +32,7 @@ require_once WEAVIT_ENGINE_DIR . 'inc/downloads.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/topics-catalog.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/seo-meta.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/smtp-settings.php';
+require_once WEAVIT_ENGINE_DIR . 'inc/newsletter-broadcast.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/site-options.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/importer.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/forms/forms-cpt.php';

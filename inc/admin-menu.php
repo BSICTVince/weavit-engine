@@ -111,14 +111,28 @@ function bootg_module_registry() {
 			'icon'        => 'dashicons-search',
 			'togglable'   => true,
 		),
+		'newsletter-broadcast' => array(
+			'label'       => 'Newsletter Broadcast',
+			'description' => 'Emails every newsletter subscriber automatically when a new Blog post is published. Off by default — turning this on starts sending real emails to your subscriber list the moment a post goes live, so it needs a conscious opt-in, unlike every other module here.',
+			'icon'        => 'dashicons-email-alt',
+			'togglable'   => true,
+			'default'     => false,
+		),
 	);
 }
 
-/** Every module defaults to ON — installing this update must never silently disable something a live site already depends on. */
+/**
+ * Every module defaults to ON — installing this update must never silently
+ * disable something a live site already depends on — EXCEPT a module that
+ * sets 'default' => false in the registry: that's for a genuinely new,
+ * site-visible behavior (e.g. mass-emailing subscribers) where turning it
+ * on automatically the moment the update installs would be the surprising
+ * thing, not the safe one.
+ */
 function bootg_enabled_modules() {
 	$defaults = array();
 	foreach ( bootg_module_registry() as $id => $module ) {
-		$defaults[ $id ] = true;
+		$defaults[ $id ] = $module['default'] ?? true;
 	}
 	return wp_parse_args( get_option( BOOTG_ENABLED_MODULES_OPTION, array() ), $defaults );
 }
