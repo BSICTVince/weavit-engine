@@ -1,7 +1,12 @@
 <?php
 /**
  * Per-page/post SEO fields — Meta Title, Meta Description, Keywords.
- * Core Meta Boxes API only, no SEO plugin.
+ * Core Meta Boxes API only, no SEO plugin. Gated behind the "SEO Meta
+ * Fields" module (Weavit → Modules) — a site switching to Yoast, RankMath,
+ * or another SEO plugin should turn this off rather than have two plugins
+ * fighting over the same <title>/meta tags. register_post_meta() stays
+ * registered either way so no data is lost if it's re-enabled later; only
+ * the editor tab and the <head> output are gated.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,7 +36,7 @@ add_action( 'init', function () {
 // Contributes an "SEO" tab to the Weavit sidebar panel (inc/editor-panel.php)
 // instead of its own classic meta box — same register_post_meta() fields above.
 add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
-	if ( ! in_array( $post_type, bootg_seo_post_types(), true ) ) {
+	if ( ! bootg_module_enabled( 'seo-meta' ) || ! in_array( $post_type, bootg_seo_post_types(), true ) ) {
 		return $tabs;
 	}
 
@@ -60,7 +65,7 @@ add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
 
 /** Output: <title> override */
 add_filter( 'pre_get_document_title', function ( $title ) {
-	if ( ! is_singular() ) {
+	if ( ! bootg_module_enabled( 'seo-meta' ) || ! is_singular() ) {
 		return $title;
 	}
 	$custom = get_post_meta( get_queried_object_id(), 'meta_title', true );
@@ -69,7 +74,7 @@ add_filter( 'pre_get_document_title', function ( $title ) {
 
 /** Output: meta description + keywords tags */
 add_action( 'wp_head', function () {
-	if ( ! is_singular() ) {
+	if ( ! bootg_module_enabled( 'seo-meta' ) || ! is_singular() ) {
 		return;
 	}
 	$id          = get_queried_object_id();

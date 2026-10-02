@@ -95,9 +95,15 @@ function bootg_module_registry() {
 		),
 		'seo-tools'      => array(
 			'label'       => 'SEO Tools',
-			'description' => 'Meta tags, redirects, and .htaccess editing.',
+			'description' => 'Redirects and .htaccess editing.',
 			'icon'        => 'dashicons-chart-line',
 			'togglable'   => false,
+		),
+		'seo-meta'       => array(
+			'label'       => 'SEO Meta Fields',
+			'description' => 'Per-page Meta Title/Description/Keywords fields (Weavit tab) and the matching <title>/meta tag output. Turn off if the client is using Yoast, RankMath, or another SEO plugin instead — avoids both writing the same tags.',
+			'icon'        => 'dashicons-search',
+			'togglable'   => true,
 		),
 	);
 }
@@ -383,6 +389,16 @@ function bootg_render_weavit_modules_page() {
 
 		<p class="description" style="max-width:700px;">Each card is one feature. Togglable ones turn their shortcodes, post types, and admin screens off completely when switched off. "Always on" modules are core infrastructure this version of the plugin doesn't yet support safely disabling.</p>
 
+		<style>
+			.weavit-toggle{display:inline-flex;align-items:center;cursor:pointer;gap:0;}
+			.weavit-toggle input{position:absolute;opacity:0;width:1px;height:1px;}
+			.weavit-toggle-track{width:36px;height:20px;background:#dcdcde;border-radius:999px;position:relative;transition:background-color .15s ease;flex-shrink:0;}
+			.weavit-toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .15s ease;box-shadow:0 1px 2px rgba(0,0,0,.25);}
+			.weavit-toggle input:checked + .weavit-toggle-track{background:#2271b1;}
+			.weavit-toggle input:checked + .weavit-toggle-track .weavit-toggle-thumb{transform:translateX(16px);}
+			.weavit-toggle input:focus-visible + .weavit-toggle-track{outline:2px solid #2271b1;outline-offset:2px;}
+		</style>
+
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<?php wp_nonce_field( 'bootg_save_modules' ); ?>
 			<input type="hidden" name="action" value="bootg_save_modules">
@@ -393,9 +409,9 @@ function bootg_render_weavit_modules_page() {
 						<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;">
 							<span class="dashicons <?php echo esc_attr( $module['icon'] ); ?>" style="font-size:22px;width:22px;height:22px;color:#2271b1;"></span>
 							<?php if ( $module['togglable'] ) : ?>
-								<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;">
+								<label class="weavit-toggle" aria-label="Enabled">
 									<input type="checkbox" name="module_<?php echo esc_attr( $id ); ?>" value="1" <?php checked( ! empty( $enabled[ $id ] ) ); ?>>
-									Enabled
+									<span class="weavit-toggle-track"><span class="weavit-toggle-thumb"></span></span>
 								</label>
 							<?php else : ?>
 								<span style="font-size:11px;font-weight:600;color:#787c82;background:#f0f0f1;border-radius:999px;padding:3px 10px;">Always on</span>
