@@ -33,8 +33,9 @@ function bootg_meta_fields( $post_type ) {
 			);
 		case 'team_member':
 			return array(
-				'role'         => array( 'Role / title', 'text' ),
-				'linkedin_url' => array( 'LinkedIn URL', 'url' ),
+				'role'           => array( 'Role / title', 'text' ),
+				'linkedin_url'   => array( 'LinkedIn URL', 'url' ),
+				'certifications' => array( 'Certifications & software (one per line)', 'textarea' ),
 			);
 		case 'guide':
 			return array(
