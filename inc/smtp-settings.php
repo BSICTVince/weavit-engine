@@ -285,7 +285,7 @@ function bootg_render_smtp_general_tab() {
 			<table class="form-table" role="presentation">
 				<tr>
 					<th><label for="smtp_test_to">Send to</label></th>
-					<td><input type="email" id="smtp_test_to" name="test_to" value="<?php echo esc_attr( wp_get_current_user()->user_email ); ?>" class="regular-text" required></td>
+					<td><input type="email" id="smtp_test_to" name="test_to" value="" placeholder="name@example.com" class="regular-text" required></td>
 				</tr>
 			</table>
 			<?php submit_button( 'Send Test Email', 'secondary', 'submit', false ); ?>
