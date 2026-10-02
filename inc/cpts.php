@@ -86,9 +86,9 @@ add_action( 'init', function () {
 		'public'       => true,
 		'show_in_rest' => true,
 		'has_archive'  => 'team',
-		'rewrite'      => array( 'slug' => 'team' ),
+		'rewrite'      => array( 'slug' => 'team-members' ),
 		'show_in_menu' => 'weavit',
-		'supports'     => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
+		'supports'     => array( 'title', 'editor', 'excerpt', 'thumbnail', 'page-attributes' ),
 	) );
 } );
 
