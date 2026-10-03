@@ -30,6 +30,45 @@ function bootg_load_json( $path ) {
  * summary becomes post_content; image (an external URL) is sideloaded
  * into the Media Library and set as the featured image.
  */
+/**
+ * Adds a file to the Media Library from either an http(s) URL or a path
+ * relative to the active theme folder (e.g. "assets/images/team/ellie.jpg"),
+ * so starter content can ship inside the theme instead of depending on
+ * another site staying online. Works for any file type (PDFs included).
+ * Returns the attachment ID or a WP_Error.
+ */
+function weavit_sideload_file( $source, $parent_id = 0, $description = '' ) {
+	if ( ! function_exists( 'media_handle_sideload' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+	}
+
+	if ( preg_match( '#^https?://#i', $source ) ) {
+		$tmp  = download_url( $source );
+		$name = basename( wp_parse_url( $source, PHP_URL_PATH ) );
+	} else {
+		$path = trailingslashit( get_stylesheet_directory() ) . ltrim( $source, '/' );
+		if ( ! is_readable( $path ) ) {
+			return new WP_Error( 'weavit_missing_file', 'Bundled file not found: ' . $source );
+		}
+		$tmp  = wp_tempnam( $path );
+		$name = basename( $path );
+		if ( ! $tmp || ! copy( $path, $tmp ) ) {
+			return new WP_Error( 'weavit_copy_failed', 'Could not copy bundled file: ' . $source );
+		}
+	}
+	if ( is_wp_error( $tmp ) ) {
+		return $tmp;
+	}
+
+	$attachment_id = media_handle_sideload( array( 'name' => $name, 'tmp_name' => $tmp ), $parent_id, $description );
+	if ( is_wp_error( $attachment_id ) ) {
+		@unlink( $tmp ); // phpcs:ignore
+	}
+	return $attachment_id;
+}
+
 function bootg_import_cpt_items( $post_type, $items ) {
 	if ( ! function_exists( 'media_sideload_image' ) ) {
 		require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -74,18 +113,9 @@ function bootg_import_cpt_items( $post_type, $items ) {
 		}
 
 		if ( ! empty( $item['image'] ) ) {
-			$tmp = download_url( $item['image'] );
-			if ( ! is_wp_error( $tmp ) ) {
-				$file_array = array(
-					'name'     => basename( wp_parse_url( $item['image'], PHP_URL_PATH ) ),
-					'tmp_name' => $tmp,
-				);
-				$attachment_id = media_handle_sideload( $file_array, $post_id );
-				if ( ! is_wp_error( $attachment_id ) ) {
-					set_post_thumbnail( $post_id, $attachment_id );
-				} else {
-					@unlink( $tmp ); // phpcs:ignore
-				}
+			$attachment_id = weavit_sideload_file( $item['image'], $post_id );
+			if ( ! is_wp_error( $attachment_id ) ) {
+				set_post_thumbnail( $post_id, $attachment_id );
 			}
 		}
 

@@ -89,13 +89,7 @@ function weavit_create_download_from_url( $slug, $title, $source_url ) {
 		return $existing->ID;
 	}
 
-	if ( ! function_exists( 'media_sideload_image' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/media.php';
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		require_once ABSPATH . 'wp-admin/includes/image.php';
-	}
-
-	$attachment_id = media_sideload_image( $source_url, 0, $title, 'id' );
+	$attachment_id = weavit_sideload_file( $source_url, 0, $title );
 	if ( is_wp_error( $attachment_id ) ) {
 		return $attachment_id;
 	}
