@@ -43,6 +43,35 @@ function weavit_imgopt_cache_dir() {
 	return WP_CONTENT_DIR . '/cache/weavit-img';
 }
 
+/**
+ * Which image engine on this server can actually WRITE WebP: "imagick", "gd",
+ * or '' if neither can. The optimizer always outputs WebP, so this decides
+ * whether it can run at all. When both engines exist, whichever one can do
+ * WebP is used (even if WordPress would normally pick the other one first).
+ */
+function weavit_imgopt_engine() {
+	static $engine = null;
+	if ( null !== $engine ) {
+		return $engine;
+	}
+	$engine = '';
+	require_once ABSPATH . WPINC . '/class-wp-image-editor.php';
+	require_once ABSPATH . WPINC . '/class-wp-image-editor-gd.php';
+	require_once ABSPATH . WPINC . '/class-wp-image-editor-imagick.php';
+	$args = array( 'mime_type' => 'image/webp' );
+
+	if ( class_exists( 'Imagick' ) && WP_Image_Editor_Imagick::test( $args ) && WP_Image_Editor_Imagick::supports_mime_type( 'image/webp' ) ) {
+		$engine = 'imagick';
+	} elseif ( function_exists( 'imagewebp' ) && WP_Image_Editor_GD::test( $args ) && WP_Image_Editor_GD::supports_mime_type( 'image/webp' ) ) {
+		$engine = 'gd';
+	}
+	return $engine;
+}
+
+function weavit_imgopt_webp_supported() {
+	return '' !== weavit_imgopt_engine();
+}
+
 /** Absolute path of a file inside wp-content/{uploads,themes,plugins}, or '' if it isn't one (blocks path tricks). */
 function weavit_imgopt_resolve( $rel ) {
 	$base = realpath( WP_CONTENT_DIR );
@@ -135,12 +164,19 @@ function weavit_imgopt_maybe_serve() {
 
 /** Resize + convert $source into a WebP at $dest. Returns true on success. */
 function weavit_imgopt_generate( $source, $dest, $sw, $sh, $mode, $quality ) {
-	if ( ! wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) ) ) {
+	$engine = weavit_imgopt_engine();
+	if ( ! $engine ) {
 		return false;
 	}
 	wp_raise_memory_limit( 'image' );
 
-	$editor = wp_get_image_editor( $source );
+	$only = array( 'imagick' === $engine ? 'WP_Image_Editor_Imagick' : 'WP_Image_Editor_GD' );
+	$pick = function () use ( $only ) {
+		return $only;
+	};
+	add_filter( 'wp_image_editors', $pick, PHP_INT_MAX );
+	$editor = wp_get_image_editor( $source, array( 'mime_type' => 'image/webp' ) );
+	remove_filter( 'wp_image_editors', $pick, PHP_INT_MAX );
 	if ( is_wp_error( $editor ) ) {
 		return false;
 	}
@@ -172,6 +208,7 @@ function weavit_imgopt_generate( $source, $dest, $sw, $sh, $mode, $quality ) {
 add_action( 'template_redirect', function () {
 	if (
 		! bootg_module_enabled( 'image-optimizer' )
+		|| ! weavit_imgopt_webp_supported()
 		|| is_admin() || is_feed() || is_robots() || is_trackback() || is_customize_preview()
 		|| ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || wp_doing_ajax()
 		|| ! empty( $_GET['weavit_noopt'] ) // phpcs:ignore WordPress.Security.NonceVerification
@@ -272,15 +309,17 @@ add_action( 'admin_post_weavit_imgopt_save', function () {
 		wp_die( 'Not allowed.' );
 	}
 	check_admin_referer( 'weavit_imgopt_save' );
+	$want                       = ! empty( $_POST['enabled'] );
+	$blocked                    = $want && ! weavit_imgopt_webp_supported();
 	$modules                    = get_option( BOOTG_ENABLED_MODULES_OPTION, array() );
-	$modules['image-optimizer'] = ! empty( $_POST['enabled'] );
+	$modules['image-optimizer'] = $want && ! $blocked;
 	update_option( BOOTG_ENABLED_MODULES_OPTION, $modules );
 	update_option( WEAVIT_IMGOPT_OPTION, array(
 		'threshold_kb' => min( 5000, max( 50, absint( $_POST['threshold_kb'] ?? 250 ) ) ),
 		'quality'      => min( 95, max( 30, absint( $_POST['quality'] ?? 85 ) ) ),
 		'max_width'    => min( 4000, max( 320, absint( $_POST['max_width'] ?? 1600 ) ) ),
 	) );
-	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', 'saved' => 1 ), admin_url( 'admin.php' ) ) );
+	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', ( $blocked ? 'unsupported' : 'saved' ) => 1 ), admin_url( 'admin.php' ) ) );
 	exit;
 } );
 
@@ -307,7 +346,8 @@ function weavit_imgopt_render_page() {
 	$s       = weavit_imgopt_settings();
 	$limit   = $s['threshold_kb'] * 1024;
 	$enabled = bootg_module_enabled( 'image-optimizer' );
-	$webp_ok = wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) );
+	$engine  = weavit_imgopt_engine();
+	$webp_ok = '' !== $engine;
 
 	$cache_files = 0;
 	$cache_bytes = 0;
@@ -345,6 +385,8 @@ function weavit_imgopt_render_page() {
 		<h1>Image Optimizer</h1>
 		<?php if ( isset( $_GET['saved'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
+		<?php elseif ( isset( $_GET['unsupported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<div class="notice notice-error"><p><strong>Couldn't switch the Image Optimizer on:</strong> this server can't create WebP images (see "WebP conversion" below). Settings were saved, but the optimizer stays off.</p></div>
 		<?php elseif ( isset( $_GET['cleared'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Image cache cleared — images are re-converted on their next visit.</p></div>
 		<?php endif; ?>
@@ -353,7 +395,7 @@ function weavit_imgopt_render_page() {
 
 		<table class="widefat striped" style="max-width:720px;margin-bottom:20px;">
 			<tr><th style="width:220px;">Module</th><td><?php echo $enabled ? '<strong style="color:#00a32a;">On</strong>' : '<strong style="color:#b32d2e;">Off</strong> — turn it on under <a href="' . esc_url( admin_url( 'admin.php?page=weavit-modules' ) ) . '">Weavit &rarr; Modules</a>'; ?></td></tr>
-			<tr><th>WebP conversion on this server</th><td><?php echo $webp_ok ? '<strong style="color:#00a32a;">Supported</strong>' : '<strong style="color:#b32d2e;">Not supported</strong> — visitors get the original images instead.'; ?></td></tr>
+			<tr><th>WebP conversion on this server</th><td><?php echo $webp_ok ? '<strong style="color:#00a32a;">Supported</strong> via ' . ( 'imagick' === $engine ? 'Imagick' : 'GD' ) . ' — the optimizer always outputs WebP.' : '<strong style="color:#b32d2e;">Not supported</strong> — the optimizer can\'t run here, so visitors keep getting the original images. Ask your host to enable WebP in PHP (the GD extension compiled with WebP, or Imagick with WebP), then come back and switch it on.'; ?></td></tr>
 			<tr><th>Cached conversions</th><td><?php echo (int) $cache_files; ?> file(s), <?php echo esc_html( size_format( $cache_bytes ) ); ?></td></tr>
 		</table>
 
@@ -361,7 +403,7 @@ function weavit_imgopt_render_page() {
 			<?php wp_nonce_field( 'weavit_imgopt_save' ); ?>
 			<input type="hidden" name="action" value="weavit_imgopt_save">
 			<table class="form-table" role="presentation">
-				<tr><th>Image Optimizer</th><td><label><input type="checkbox" name="enabled" value="1" <?php checked( $enabled ); ?>> Enable — serve big images as WebP on the front-end</label><p class="description">Untick and save to switch it off: pages go back to the original images straight away. Already-cached WebP links keep working.</p></td></tr>
+				<tr><th>Image Optimizer</th><td><label><input type="checkbox" name="enabled" value="1" <?php checked( $enabled ); ?> <?php disabled( ! $webp_ok ); ?>> Enable — serve big images as WebP on the front-end</label><p class="description">Untick and save to switch it off: pages go back to the original images straight away. Already-cached WebP links keep working.</p></td></tr>
 				<tr><th><label for="threshold_kb">Optimize images larger than</label></th><td><input type="number" id="threshold_kb" name="threshold_kb" value="<?php echo (int) $s['threshold_kb']; ?>" min="50" max="5000" class="small-text"> KB</td></tr>
 				<tr><th><label for="quality">WebP quality</label></th><td><input type="number" id="quality" name="quality" value="<?php echo (int) $s['quality']; ?>" min="30" max="95" class="small-text"> <span class="description">(85 is a good balance)</span></td></tr>
 				<tr><th><label for="max_width">Maximum width</label></th><td><input type="number" id="max_width" name="max_width" value="<?php echo (int) $s['max_width']; ?>" min="320" max="4000" class="small-text"> px <span class="description">(wider images are scaled down, never up)</span></td></tr>
@@ -391,3 +433,14 @@ function weavit_imgopt_render_page() {
 	</div>
 	<?php
 }
+
+add_action( 'admin_notices', function () {
+	if ( ! current_user_can( 'manage_options' ) || ! bootg_module_enabled( 'image-optimizer' ) || weavit_imgopt_webp_supported() ) {
+		return;
+	}
+	$screen = get_current_screen();
+	if ( ! $screen || ( false === strpos( (string) $screen->id, 'weavit' ) && 'plugins' !== $screen->id ) ) {
+		return;
+	}
+	echo '<div class="notice notice-warning"><p><strong>Image Optimizer is on, but this server can\'t create WebP images,</strong> so it is doing nothing and visitors get the original images. Ask your host to enable WebP in PHP (GD with WebP, or Imagick with WebP).</p></div>';
+} );
