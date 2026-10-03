@@ -1,0 +1,389 @@
+<?php
+/**
+ * Image Optimizer — an on-the-fly WebP image server for big JPG/PNG files.
+ *
+ * Front-end HTML: any local <img>/<source>/inline-style image over the size
+ * threshold (default 250 KB) is rewritten to
+ *   .../name.webp?sw=1082&sh=1082&sm=cut&sfrm=jpg&q=85
+ * That URL doesn't exist on disk, so the web server hands it to WordPress,
+ * which (below) resizes + converts the original once, caches the result in
+ * wp-content/cache/weavit-img/, and serves it with far-future cache headers.
+ * Take the ".webp?..." part off and you get the untouched original file
+ * (name.jpg / name.png) exactly as uploaded.
+ *
+ * Query parameters:
+ *   sw, sh  target width / height in px (never upscaled)
+ *   sm      "cut" = fill sw x sh and crop the overflow, "fit" = fit inside it
+ *   sfrm    source extension to look for (jpg | jpeg | png); optional
+ *   q       WebP quality 30-95
+ *
+ * The URL-rewriting is the module toggle (Weavit > Modules); the endpoint
+ * itself always answers, so pages cached while the module was on don't break.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'WEAVIT_IMGOPT_OPTION', 'weavit_image_optimizer' );
+
+function weavit_imgopt_settings() {
+	$s = wp_parse_args( get_option( WEAVIT_IMGOPT_OPTION, array() ), array(
+		'threshold_kb' => 250,
+		'quality'      => 85,
+		'max_width'    => 1600,
+	) );
+	$s['threshold_kb'] = min( 5000, max( 50, (int) $s['threshold_kb'] ) );
+	$s['quality']      = min( 95, max( 30, (int) $s['quality'] ) );
+	$s['max_width']    = min( 4000, max( 320, (int) $s['max_width'] ) );
+	return $s;
+}
+
+function weavit_imgopt_cache_dir() {
+	return WP_CONTENT_DIR . '/cache/weavit-img';
+}
+
+/** Absolute path of a file inside wp-content/{uploads,themes,plugins}, or '' if it isn't one (blocks path tricks). */
+function weavit_imgopt_resolve( $rel ) {
+	$base = realpath( WP_CONTENT_DIR );
+	$path = $base ? realpath( $base . '/' . ltrim( $rel, '/' ) ) : false;
+	if ( ! $path || ! is_file( $path ) || 0 !== strpos( $path, $base . DIRECTORY_SEPARATOR ) ) {
+		return '';
+	}
+	$top = strtok( ltrim( substr( $path, strlen( $base ) ), '/\\' ), '/\\' );
+	return in_array( $top, array( 'uploads', 'themes', 'plugins' ), true ) ? $path : '';
+}
+
+/* ---------------------------------------------------------------------
+ * 1. The image endpoint
+ * ------------------------------------------------------------------- */
+
+add_action( 'init', 'weavit_imgopt_maybe_serve', 0 );
+
+function weavit_imgopt_maybe_serve() {
+	$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+	if ( false === stripos( $uri, '.webp' ) ) {
+		return;
+	}
+
+	$parts = wp_parse_url( $uri );
+	$path  = isset( $parts['path'] ) ? rawurldecode( $parts['path'] ) : '';
+	$base  = (string) wp_parse_url( content_url(), PHP_URL_PATH );
+	if ( ! preg_match( '/\.webp$/i', $path ) || 0 !== strpos( $path, $base . '/' ) ) {
+		return;
+	}
+
+	$query = array();
+	if ( ! empty( $parts['query'] ) ) {
+		parse_str( $parts['query'], $query );
+	}
+
+	$candidates = array( 'jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG' );
+	if ( ! empty( $query['sfrm'] ) ) {
+		$sfrm = (string) $query['sfrm'];
+		if ( ! preg_match( '/^(jpe?g|png)$/i', $sfrm ) ) {
+			return;
+		}
+		$candidates = array( $sfrm );
+	}
+
+	$rel_webp = substr( $path, strlen( $base ) );
+	$file     = '';
+	$ext      = '';
+	foreach ( $candidates as $candidate ) {
+		$found = weavit_imgopt_resolve( preg_replace( '/\.webp$/i', '.' . $candidate, $rel_webp ) );
+		if ( $found ) {
+			$file = $found;
+			$ext  = $candidate;
+			break;
+		}
+	}
+	if ( ! $file ) {
+		return; // Not ours — let WordPress carry on (normal 404).
+	}
+
+	$sw   = isset( $query['sw'] ) ? min( 4000, max( 0, (int) $query['sw'] ) ) : 0;
+	$sh   = isset( $query['sh'] ) ? min( 4000, max( 0, (int) $query['sh'] ) ) : 0;
+	$mode = ( isset( $query['sm'] ) && 'cut' === $query['sm'] ) ? 'cut' : 'fit';
+	$q    = isset( $query['q'] ) ? min( 95, max( 30, (int) $query['q'] ) ) : weavit_imgopt_settings()['quality'];
+
+	$key   = md5( $file . '|' . filemtime( $file ) . '|' . $sw . 'x' . $sh . '|' . $mode . '|' . $q );
+	$cache = weavit_imgopt_cache_dir() . '/' . substr( $key, 0, 2 ) . '/' . $key . '.webp';
+
+	if ( ! is_file( $cache ) && ! weavit_imgopt_generate( $file, $cache, $sw, $sh, $mode, $q ) ) {
+		// Can't convert on this server — send the visitor to the untouched original.
+		wp_redirect( content_url( preg_replace( '/\.webp$/i', '.' . $ext, $rel_webp ) ), 302 ); // phpcs:ignore WordPress.Security.SafeRedirect
+		exit;
+	}
+
+	$etag = '"' . $key . '"';
+	if ( isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) && trim( (string) $_SERVER['HTTP_IF_NONE_MATCH'] ) === $etag ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		status_header( 304 );
+		exit;
+	}
+
+	status_header( 200 );
+	header( 'Content-Type: image/webp' );
+	header( 'Content-Length: ' . filesize( $cache ) );
+	header( 'Cache-Control: public, max-age=31536000, immutable' );
+	header( 'ETag: ' . $etag );
+	header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', filemtime( $cache ) ) . ' GMT' );
+	header( 'X-Weavit-Image: webp' );
+	readfile( $cache ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	exit;
+}
+
+/** Resize + convert $source into a WebP at $dest. Returns true on success. */
+function weavit_imgopt_generate( $source, $dest, $sw, $sh, $mode, $quality ) {
+	if ( ! wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) ) ) {
+		return false;
+	}
+	wp_raise_memory_limit( 'image' );
+
+	$editor = wp_get_image_editor( $source );
+	if ( is_wp_error( $editor ) ) {
+		return false;
+	}
+
+	if ( $sw || $sh ) {
+		$size = $editor->get_size();
+		$w    = min( $sw ?: $size['width'], $size['width'] );
+		$h    = min( $sh ?: $size['height'], $size['height'] );
+		$editor->resize( $w, $h, 'cut' === $mode && $sw && $sh ); // A WP_Error here just means "nothing to resize".
+	}
+	$editor->set_quality( $quality );
+
+	$dir = dirname( $dest );
+	if ( ! wp_mkdir_p( $dir ) ) {
+		return false;
+	}
+	$tmp   = $dir . '/' . wp_generate_password( 12, false ) . '.tmp.webp';
+	$saved = $editor->save( $tmp, 'image/webp' );
+	if ( is_wp_error( $saved ) || empty( $saved['path'] ) || ! is_file( $saved['path'] ) ) {
+		return false;
+	}
+	return rename( $saved['path'], $dest ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+}
+
+/* ---------------------------------------------------------------------
+ * 2. Rewriting front-end HTML
+ * ------------------------------------------------------------------- */
+
+add_action( 'template_redirect', function () {
+	if (
+		! bootg_module_enabled( 'image-optimizer' )
+		|| is_admin() || is_feed() || is_robots() || is_trackback() || is_customize_preview()
+		|| ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || wp_doing_ajax()
+		|| ! empty( $_GET['weavit_noopt'] ) // phpcs:ignore WordPress.Security.NonceVerification
+	) {
+		return;
+	}
+	ob_start( 'weavit_imgopt_filter_html' );
+}, 1 );
+
+/** Returns the optimized URL for a local JPG/PNG over the threshold, or the URL unchanged. */
+function weavit_imgopt_convert_url( $url ) {
+	static $memo = array();
+	if ( isset( $memo[ $url ] ) ) {
+		return $memo[ $url ];
+	}
+	$memo[ $url ] = $url;
+
+	if ( ! preg_match( '#\.(jpe?g|png)$#i', $url, $m ) || false !== strpos( $url, '?' ) ) {
+		return $url;
+	}
+	$ext  = $m[1];
+	$host = wp_parse_url( $url, PHP_URL_HOST );
+	if ( $host && 0 !== strcasecmp( $host, (string) wp_parse_url( home_url(), PHP_URL_HOST ) ) ) {
+		return $url;
+	}
+	$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+	$base = (string) wp_parse_url( content_url(), PHP_URL_PATH );
+	if ( 0 !== strpos( $path, $base . '/' ) ) {
+		return $url;
+	}
+
+	$file = weavit_imgopt_resolve( rawurldecode( substr( $path, strlen( $base ) ) ) );
+	$set  = weavit_imgopt_settings();
+	if ( ! $file || filesize( $file ) <= $set['threshold_kb'] * 1024 ) {
+		return $url;
+	}
+	$dim = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+	if ( ! $dim || $dim[0] < 1 || $dim[1] < 1 ) {
+		return $url;
+	}
+
+	$w = $dim[0];
+	$h = $dim[1];
+	if ( $w > $set['max_width'] ) {
+		$h = (int) round( $h * $set['max_width'] / $w );
+		$w = $set['max_width'];
+	}
+
+	$memo[ $url ] = preg_replace( '#\.(jpe?g|png)$#i', '.webp', $url )
+		. '?sw=' . $w . '&amp;sh=' . $h . '&amp;sm=cut&amp;sfrm=' . strtolower( $ext ) . '&amp;q=' . $set['quality'];
+	return $memo[ $url ];
+}
+
+function weavit_imgopt_filter_html( $html ) {
+	if ( ! is_string( $html ) || '' === $html || ( false === stripos( $html, '<img' ) && false === stripos( $html, '<source' ) && false === stripos( $html, 'url(' ) ) ) {
+		return $html;
+	}
+
+	// <img> / <source>: src, data-src, srcset, data-srcset.
+	$html = preg_replace_callback( '/<(?:img|source)\b[^>]*>/i', function ( $tag ) {
+		return preg_replace_callback( '/\b(src|data-src|srcset|data-srcset)\s*=\s*(["\'])(.*?)\2/is', function ( $a ) {
+			$name = strtolower( $a[1] );
+			if ( 'srcset' === $name || 'data-srcset' === $name ) {
+				$items = array_map( function ( $item ) {
+					$bits = preg_split( '/\s+/', trim( $item ), 2 );
+					return weavit_imgopt_convert_url( $bits[0] ) . ( isset( $bits[1] ) ? ' ' . $bits[1] : '' );
+				}, explode( ',', $a[3] ) );
+				return $a[1] . '=' . $a[2] . implode( ', ', $items ) . $a[2];
+			}
+			return $a[1] . '=' . $a[2] . weavit_imgopt_convert_url( $a[3] ) . $a[2];
+		}, $tag[0] );
+	}, $html );
+
+	// Inline style="...url(...)..." backgrounds.
+	$html = preg_replace_callback( '/\bstyle\s*=\s*(["\'])(.*?)\1/is', function ( $s ) {
+		if ( false === stripos( $s[2], 'url(' ) ) {
+			return $s[0];
+		}
+		$css = preg_replace_callback( '/url\(\s*([\'"]?)([^\'")]+)\1\s*\)/i', function ( $u ) {
+			return 'url(' . $u[1] . weavit_imgopt_convert_url( trim( $u[2] ) ) . $u[1] . ')';
+		}, $s[2] );
+		return 'style=' . $s[1] . $css . $s[1];
+	}, $html );
+
+	return $html;
+}
+
+/* ---------------------------------------------------------------------
+ * 3. Settings page: threshold / quality / max width, status, big-file list
+ * ------------------------------------------------------------------- */
+
+add_action( 'admin_menu', function () {
+	add_submenu_page( 'weavit', 'Image Optimizer', 'Image Optimizer', 'manage_options', 'weavit-image-optimizer', 'weavit_imgopt_render_page' );
+} );
+
+add_action( 'admin_post_weavit_imgopt_save', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	check_admin_referer( 'weavit_imgopt_save' );
+	update_option( WEAVIT_IMGOPT_OPTION, array(
+		'threshold_kb' => min( 5000, max( 50, absint( $_POST['threshold_kb'] ?? 250 ) ) ),
+		'quality'      => min( 95, max( 30, absint( $_POST['quality'] ?? 85 ) ) ),
+		'max_width'    => min( 4000, max( 320, absint( $_POST['max_width'] ?? 1600 ) ) ),
+	) );
+	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', 'saved' => 1 ), admin_url( 'admin.php' ) ) );
+	exit;
+} );
+
+add_action( 'admin_post_weavit_imgopt_clear', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	check_admin_referer( 'weavit_imgopt_clear' );
+	$dir = weavit_imgopt_cache_dir();
+	if ( is_dir( $dir ) ) {
+		$it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );
+		foreach ( $it as $f ) {
+			$f->isDir() ? @rmdir( $f->getPathname() ) : @unlink( $f->getPathname() ); // phpcs:ignore
+		}
+	}
+	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', 'cleared' => 1 ), admin_url( 'admin.php' ) ) );
+	exit;
+} );
+
+function weavit_imgopt_render_page() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$s       = weavit_imgopt_settings();
+	$limit   = $s['threshold_kb'] * 1024;
+	$enabled = bootg_module_enabled( 'image-optimizer' );
+	$webp_ok = wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) );
+
+	$cache_files = 0;
+	$cache_bytes = 0;
+	$dir         = weavit_imgopt_cache_dir();
+	if ( is_dir( $dir ) ) {
+		foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
+			if ( $f->isFile() ) {
+				++$cache_files;
+				$cache_bytes += $f->getSize();
+			}
+		}
+	}
+
+	$big   = array();
+	$scans = array( 'uploads' => WP_CONTENT_DIR . '/uploads', 'theme' => get_template_directory() . '/assets' );
+	$seen  = 0;
+	foreach ( $scans as $label => $root ) {
+		if ( ! is_dir( $root ) ) {
+			continue;
+		}
+		foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
+			if ( ++$seen > 20000 ) {
+				break 2;
+			}
+			if ( $f->isFile() && preg_match( '/\.(jpe?g|png)$/i', $f->getFilename() ) && $f->getSize() > $limit ) {
+				$big[] = array( $f->getSize(), str_replace( WP_CONTENT_DIR, '', $f->getPathname() ) );
+			}
+		}
+	}
+	usort( $big, function ( $a, $b ) {
+		return $b[0] - $a[0];
+	} );
+	?>
+	<div class="wrap">
+		<h1>Image Optimizer</h1>
+		<?php if ( isset( $_GET['saved'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
+		<?php elseif ( isset( $_GET['cleared'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<div class="notice notice-success is-dismissible"><p>Image cache cleared — images are re-converted on their next visit.</p></div>
+		<?php endif; ?>
+
+		<p style="max-width:720px;">Serves JPG/PNG files over the size limit as resized WebP on the front-end, e.g. <code>photo.webp?sw=1082&amp;sh=1082&amp;sm=cut&amp;sfrm=jpg&amp;q=85</code>. Remove the <code>.webp?…</code> part and you get the untouched original (<code>photo.jpg</code>). Originals are never modified.</p>
+
+		<table class="widefat striped" style="max-width:720px;margin-bottom:20px;">
+			<tr><th style="width:220px;">Module</th><td><?php echo $enabled ? '<strong style="color:#00a32a;">On</strong>' : '<strong style="color:#b32d2e;">Off</strong> — turn it on under <a href="' . esc_url( admin_url( 'admin.php?page=weavit-modules' ) ) . '">Weavit &rarr; Modules</a>'; ?></td></tr>
+			<tr><th>WebP conversion on this server</th><td><?php echo $webp_ok ? '<strong style="color:#00a32a;">Supported</strong>' : '<strong style="color:#b32d2e;">Not supported</strong> — visitors get the original images instead.'; ?></td></tr>
+			<tr><th>Cached conversions</th><td><?php echo (int) $cache_files; ?> file(s), <?php echo esc_html( size_format( $cache_bytes ) ); ?></td></tr>
+		</table>
+
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
+			<?php wp_nonce_field( 'weavit_imgopt_save' ); ?>
+			<input type="hidden" name="action" value="weavit_imgopt_save">
+			<table class="form-table" role="presentation">
+				<tr><th><label for="threshold_kb">Optimize images larger than</label></th><td><input type="number" id="threshold_kb" name="threshold_kb" value="<?php echo (int) $s['threshold_kb']; ?>" min="50" max="5000" class="small-text"> KB</td></tr>
+				<tr><th><label for="quality">WebP quality</label></th><td><input type="number" id="quality" name="quality" value="<?php echo (int) $s['quality']; ?>" min="30" max="95" class="small-text"> <span class="description">(85 is a good balance)</span></td></tr>
+				<tr><th><label for="max_width">Maximum width</label></th><td><input type="number" id="max_width" name="max_width" value="<?php echo (int) $s['max_width']; ?>" min="320" max="4000" class="small-text"> px <span class="description">(wider images are scaled down, never up)</span></td></tr>
+			</table>
+			<?php submit_button( 'Save Settings', 'primary', 'submit', false ); ?>
+		</form>
+
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="margin-top:12px;">
+			<?php wp_nonce_field( 'weavit_imgopt_clear' ); ?>
+			<input type="hidden" name="action" value="weavit_imgopt_clear">
+			<?php submit_button( 'Clear image cache', 'secondary', 'submit', false ); ?>
+		</form>
+
+		<h2 style="margin-top:32px;">Images over <?php echo (int) $s['threshold_kb']; ?> KB</h2>
+		<?php if ( ! $big ) : ?>
+			<p>None found — nothing needs optimizing.</p>
+		<?php else : ?>
+			<table class="widefat striped" style="max-width:900px;">
+				<thead><tr><th>File</th><th style="width:110px;">Size</th></tr></thead>
+				<tbody>
+				<?php foreach ( array_slice( $big, 0, 100 ) as $row ) : ?>
+					<tr><td><code><?php echo esc_html( $row[1] ); ?></code></td><td><?php echo esc_html( size_format( $row[0] ) ); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
+	</div>
+	<?php
+}

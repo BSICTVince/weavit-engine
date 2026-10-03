@@ -111,6 +111,13 @@ function bootg_module_registry() {
 			'icon'        => 'dashicons-search',
 			'togglable'   => true,
 		),
+		'image-optimizer' => array(
+			'label'       => 'Image Optimizer',
+			'description' => 'Serves big JPG/PNG images (over 250 KB by default) as resized WebP on the front-end, converted on the fly and cached. The original files are never changed. Off by default — turn it on once your host serves the images correctly (see the Image Optimizer page).',
+			'icon'        => 'dashicons-format-image',
+			'togglable'   => true,
+			'default'     => false,
+		),
 		'newsletter-broadcast' => array(
 			'label'       => 'Newsletter Broadcast',
 			'description' => 'Emails every newsletter subscriber automatically when a new Blog post is published. Off by default — turning this on starts sending real emails to your subscriber list the moment a post goes live, so it needs a conscious opt-in, unlike every other module here.',
