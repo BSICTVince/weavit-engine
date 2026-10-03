@@ -188,7 +188,8 @@ function bootg_get_or_create_system_form( $slug, $title, $fields, $settings = ar
 	}
 
 	bootg_save_form_schema( $form_id, $fields );
-	bootg_save_form_settings( $form_id, $settings );
+	// A form should email its owner unless its definition says otherwise (the save function would otherwise store a missing flag as "off").
+	bootg_save_form_settings( $form_id, array_merge( array( 'notify_enabled' => true ), (array) $settings ) );
 
 	return $form_id;
 }
