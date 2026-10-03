@@ -136,8 +136,8 @@ function weavit_imgopt_maybe_serve() {
 	$mode = ( isset( $query['sm'] ) && 'cut' === $query['sm'] ) ? 'cut' : 'fit';
 	$q    = isset( $query['q'] ) ? min( 95, max( 30, (int) $query['q'] ) ) : weavit_imgopt_settings()['quality'];
 
-	$key   = md5( $file . '|' . filemtime( $file ) . '|' . $sw . 'x' . $sh . '|' . $mode . '|' . $q );
-	$cache = weavit_imgopt_cache_dir() . '/' . substr( $key, 0, 2 ) . '/' . $key . '.webp';
+	$cache = weavit_imgopt_cache_path( $file, $sw, $sh, $mode, $q );
+	$key   = basename( $cache, '.webp' );
 
 	if ( ! is_file( $cache ) && ! weavit_imgopt_generate( $file, $cache, $sw, $sh, $mode, $q ) ) {
 		// Can't convert on this server — send the visitor to the untouched original.
@@ -201,6 +201,98 @@ function weavit_imgopt_generate( $source, $dest, $sw, $sh, $mode, $quality ) {
 	return rename( $saved['path'], $dest ); // phpcs:ignore WordPress.WP.AlternativeFunctions
 }
 
+/** Where the converted WebP for these exact settings lives (whether or not it exists yet). */
+function weavit_imgopt_cache_path( $file, $sw, $sh, $mode, $quality ) {
+	$key = md5( $file . '|' . filemtime( $file ) . '|' . $sw . 'x' . $sh . '|' . $mode . '|' . $quality );
+	return weavit_imgopt_cache_dir() . '/' . substr( $key, 0, 2 ) . '/' . $key . '.webp';
+}
+
+/**
+ * The [width, height] an image will be served at, or null when it doesn't
+ * need optimizing (not a JPG/PNG, or not over the size limit). This is the one
+ * place that decides "too heavy", so page rewriting, the upload hook, the
+ * Media Library column and the scan all agree.
+ */
+function weavit_imgopt_target( $file ) {
+	if ( ! is_file( $file ) || ! preg_match( '/\.(jpe?g|png)$/i', $file ) ) {
+		return null;
+	}
+	$set = weavit_imgopt_settings();
+	if ( filesize( $file ) <= $set['threshold_kb'] * 1024 ) {
+		return null;
+	}
+	$dim = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+	if ( ! $dim || $dim[0] < 1 || $dim[1] < 1 ) {
+		return null;
+	}
+	$w = (int) $dim[0];
+	$h = (int) $dim[1];
+	if ( $w > $set['max_width'] ) {
+		$h = (int) round( $h * $set['max_width'] / $w );
+		$w = $set['max_width'];
+	}
+	return array( $w, $h );
+}
+
+/** Converts one file now (instead of on its first visit). Returns 'skipped', 'cached', 'created' or 'failed'. */
+function weavit_imgopt_warm( $file ) {
+	$target = weavit_imgopt_target( $file );
+	if ( ! $target ) {
+		return 'skipped';
+	}
+	$q     = weavit_imgopt_settings()['quality'];
+	$cache = weavit_imgopt_cache_path( $file, $target[0], $target[1], 'cut', $q );
+	if ( is_file( $cache ) ) {
+		return 'cached';
+	}
+	return weavit_imgopt_generate( $file, $cache, $target[0], $target[1], 'cut', $q ) ? 'created' : 'failed';
+}
+
+/** Every JPG/PNG over the size limit in the Media Library folder and the active theme's assets, biggest first. */
+function weavit_imgopt_scan() {
+	$set   = weavit_imgopt_settings();
+	$limit = $set['threshold_kb'] * 1024;
+	$rows  = array();
+	$seen  = 0;
+	$roots = array(
+		'Media Library' => WP_CONTENT_DIR . '/uploads',
+		'Theme'         => get_template_directory() . '/assets',
+	);
+	foreach ( $roots as $label => $root ) {
+		if ( ! is_dir( $root ) ) {
+			continue;
+		}
+		foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
+			if ( ++$seen > 30000 ) {
+				break 2;
+			}
+			if ( ! $f->isFile() || $f->getSize() <= $limit || ! preg_match( '/\.(jpe?g|png)$/i', $f->getFilename() ) || false !== strpos( $f->getPathname(), DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'weavit-img' ) ) {
+				continue;
+			}
+			$file   = $f->getPathname();
+			$dim    = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			$target = weavit_imgopt_target( $file );
+			$webp   = 0;
+			if ( $target ) {
+				$cache = weavit_imgopt_cache_path( $file, $target[0], $target[1], 'cut', $set['quality'] );
+				$webp  = is_file( $cache ) ? filesize( $cache ) : 0;
+			}
+			$rows[] = array(
+				'file'  => $file,
+				'rel'   => str_replace( '\\', '/', str_replace( WP_CONTENT_DIR, '', $file ) ),
+				'where' => $label,
+				'size'  => $f->getSize(),
+				'dim'   => $dim ? $dim[0] . ' × ' . $dim[1] : '?',
+				'webp'  => $webp,
+			);
+		}
+	}
+	usort( $rows, function ( $a, $b ) {
+		return $b['size'] - $a['size'];
+	} );
+	return $rows;
+}
+
 /* ---------------------------------------------------------------------
  * 2. Rewriting front-end HTML
  * ------------------------------------------------------------------- */
@@ -248,22 +340,13 @@ function weavit_imgopt_convert_url( $url, $html_context = true ) {
 		return $url;
 	}
 
-	$file = weavit_imgopt_resolve( rawurldecode( substr( $path, strlen( $base ) ) ) );
-	$set  = weavit_imgopt_settings();
-	if ( ! $file || filesize( $file ) <= $set['threshold_kb'] * 1024 ) {
+	$file   = weavit_imgopt_resolve( rawurldecode( substr( $path, strlen( $base ) ) ) );
+	$set    = weavit_imgopt_settings();
+	$target = $file ? weavit_imgopt_target( $file ) : null;
+	if ( ! $target ) {
 		return $url;
 	}
-	$dim = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-	if ( ! $dim || $dim[0] < 1 || $dim[1] < 1 ) {
-		return $url;
-	}
-
-	$w = $dim[0];
-	$h = $dim[1];
-	if ( $w > $set['max_width'] ) {
-		$h = (int) round( $h * $set['max_width'] / $w );
-		$w = $set['max_width'];
-	}
+	list( $w, $h ) = $target;
 
 	$amp = $html_context ? '&amp;' : '&';
 	$memo[ $key ] = preg_replace( '#\.(jpe?g|png)$#i', '.webp', $url )
@@ -419,25 +502,13 @@ function weavit_imgopt_render_page() {
 		}
 	}
 
-	$big   = array();
-	$scans = array( 'uploads' => WP_CONTENT_DIR . '/uploads', 'theme' => get_template_directory() . '/assets' );
-	$seen  = 0;
-	foreach ( $scans as $label => $root ) {
-		if ( ! is_dir( $root ) ) {
-			continue;
-		}
-		foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
-			if ( ++$seen > 20000 ) {
-				break 2;
-			}
-			if ( $f->isFile() && preg_match( '/\.(jpe?g|png)$/i', $f->getFilename() ) && $f->getSize() > $limit ) {
-				$big[] = array( $f->getSize(), str_replace( WP_CONTENT_DIR, '', $f->getPathname() ) );
-			}
+	$big = weavit_imgopt_scan();
+	$todo = 0;
+	foreach ( $big as $row ) {
+		if ( ! $row['webp'] ) {
+			++$todo;
 		}
 	}
-	usort( $big, function ( $a, $b ) {
-		return $b[0] - $a[0];
-	} );
 	?>
 	<div class="wrap">
 		<h1>Image Optimizer</h1>
@@ -445,6 +516,8 @@ function weavit_imgopt_render_page() {
 			<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
 		<?php elseif ( isset( $_GET['unsupported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-error"><p><strong>Couldn't switch the Image Optimizer on:</strong> this server can't create WebP images (see "WebP conversion" below). Settings were saved, but the optimizer stays off.</p></div>
+		<?php elseif ( isset( $_GET['warmed'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<div class="notice notice-success is-dismissible"><p>Converted <?php echo (int) $_GET['warmed']; // phpcs:ignore WordPress.Security.NonceVerification ?> image(s)<?php echo ! empty( $_GET['left'] ) ? '. ' . (int) $_GET['left'] . ' still to go — click "Optimize all now" again.' : '.'; // phpcs:ignore WordPress.Security.NonceVerification ?></p></div>
 		<?php elseif ( isset( $_GET['cleared'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Image cache cleared — images are re-converted on their next visit.</p></div>
 		<?php endif; ?>
@@ -476,14 +549,26 @@ function weavit_imgopt_render_page() {
 		</form>
 
 		<h2 style="margin-top:32px;">Images over <?php echo (int) $s['threshold_kb']; ?> KB</h2>
+		<p class="description" style="max-width:760px;">Every JPG/PNG in your Media Library folder and the theme's assets is checked against the limit. Heavy ones are converted the first time a visitor loads them — or all at once with the button below. New uploads over the limit are converted automatically.</p>
 		<?php if ( ! $big ) : ?>
-			<p>None found — nothing needs optimizing.</p>
+			<p><strong>None found — nothing needs optimizing.</strong></p>
 		<?php else : ?>
-			<table class="widefat striped" style="max-width:900px;">
-				<thead><tr><th>File</th><th style="width:110px;">Size</th></tr></thead>
+			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="margin:10px 0;">
+				<?php wp_nonce_field( 'weavit_imgopt_warm' ); ?>
+				<input type="hidden" name="action" value="weavit_imgopt_warm">
+				<?php submit_button( 'Optimize all now' . ( $todo ? ' (' . $todo . ' waiting)' : '' ), 'secondary', 'submit', false, $webp_ok && $todo ? array() : array( 'disabled' => 'disabled' ) ); ?>
+			</form>
+			<table class="widefat striped" style="max-width:1000px;">
+				<thead><tr><th>File</th><th style="width:90px;">Where</th><th style="width:110px;">Dimensions</th><th style="width:90px;">Size</th><th style="width:170px;">WebP version</th></tr></thead>
 				<tbody>
-				<?php foreach ( array_slice( $big, 0, 100 ) as $row ) : ?>
-					<tr><td><code><?php echo esc_html( $row[1] ); ?></code></td><td><?php echo esc_html( size_format( $row[0] ) ); ?></td></tr>
+				<?php foreach ( array_slice( $big, 0, 200 ) as $row ) : ?>
+					<tr>
+						<td><code><?php echo esc_html( $row['rel'] ); ?></code></td>
+						<td><?php echo esc_html( $row['where'] ); ?></td>
+						<td><?php echo esc_html( $row['dim'] ); ?></td>
+						<td><?php echo esc_html( size_format( $row['size'] ) ); ?></td>
+						<td><?php echo $row['webp'] ? '<strong style="color:#00a32a;">' . esc_html( size_format( $row['webp'] ) ) . '</strong> (' . (int) round( 100 - $row['webp'] / $row['size'] * 100 ) . '% smaller)' : '<span style="color:#b32d2e;">not converted yet</span>'; ?></td>
+					</tr>
 				<?php endforeach; ?>
 				</tbody>
 			</table>
@@ -502,3 +587,82 @@ add_action( 'admin_notices', function () {
 	}
 	echo '<div class="notice notice-warning"><p><strong>Image Optimizer is on, but this server can\'t create WebP images,</strong> so it is doing nothing and visitors get the original images. Ask your host to enable WebP in PHP (GD with WebP, or Imagick with WebP).</p></div>';
 } );
+
+add_action( 'admin_post_weavit_imgopt_warm', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	check_admin_referer( 'weavit_imgopt_warm' );
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 120 ); // phpcs:ignore
+	}
+	$done     = 0;
+	$left     = 0;
+	$deadline = microtime( true ) + 45; // Stay well inside a typical PHP time limit; click again for the rest.
+	foreach ( weavit_imgopt_scan() as $row ) {
+		if ( $row['webp'] ) {
+			continue;
+		}
+		if ( microtime( true ) > $deadline ) {
+			++$left;
+			continue;
+		}
+		if ( 'created' === weavit_imgopt_warm( $row['file'] ) ) {
+			++$done;
+		}
+	}
+	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', 'warmed' => $done, 'left' => $left ), admin_url( 'admin.php' ) ) );
+	exit;
+} );
+
+/* ---------------------------------------------------------------------
+ * 4. Detect heavy images as they're uploaded, and flag them in the Media Library
+ * ------------------------------------------------------------------- */
+
+// A new upload over the limit is converted right away (the full image and any generated size that's still heavy).
+add_filter( 'wp_generate_attachment_metadata', function ( $meta, $attachment_id ) {
+	if ( ! bootg_module_enabled( 'image-optimizer' ) || ! weavit_imgopt_webp_supported() ) {
+		return $meta;
+	}
+	$file = get_attached_file( $attachment_id );
+	if ( ! $file ) {
+		return $meta;
+	}
+	weavit_imgopt_warm( $file );
+	if ( ! empty( $meta['sizes'] ) && is_array( $meta['sizes'] ) ) {
+		foreach ( $meta['sizes'] as $size ) {
+			if ( ! empty( $size['file'] ) ) {
+				weavit_imgopt_warm( dirname( $file ) . '/' . $size['file'] );
+			}
+		}
+	}
+	return $meta;
+}, 20, 2 );
+
+add_filter( 'manage_media_columns', function ( $columns ) {
+	$columns['weavit_imgopt'] = 'Image Optimizer';
+	return $columns;
+} );
+
+add_action( 'manage_media_custom_column', function ( $column, $attachment_id ) {
+	if ( 'weavit_imgopt' !== $column ) {
+		return;
+	}
+	$file = get_attached_file( $attachment_id );
+	if ( ! $file || ! is_file( $file ) || ! preg_match( '/\.(jpe?g|png)$/i', $file ) ) {
+		echo '&mdash;';
+		return;
+	}
+	$size   = filesize( $file );
+	$target = weavit_imgopt_target( $file );
+	if ( ! $target ) {
+		echo '<span style="color:#646970;">OK &middot; ' . esc_html( size_format( $size ) ) . '</span>';
+		return;
+	}
+	$cache = weavit_imgopt_cache_path( $file, $target[0], $target[1], 'cut', weavit_imgopt_settings()['quality'] );
+	if ( is_file( $cache ) ) {
+		echo '<strong style="color:#00a32a;">WebP ' . esc_html( size_format( filesize( $cache ) ) ) . '</strong><br><small>original ' . esc_html( size_format( $size ) ) . '</small>';
+	} else {
+		echo '<strong style="color:#b32d2e;">Heavy ' . esc_html( size_format( $size ) ) . '</strong><br><small>not converted yet</small>';
+	}
+}, 10, 2 );
