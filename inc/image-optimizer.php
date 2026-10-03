@@ -16,6 +16,7 @@
  *   sm      "cut" = fill sw x sh and crop the overflow, "fit" = fit inside it
  *   sfrm    source extension to look for (jpg | jpeg | png); optional
  *   q       WebP quality 30-95
+ *   v       the original file's last-modified time; changes the URL whenever the image is replaced, so browsers never show a stale copy
  *
  * The URL-rewriting is the module toggle (Weavit > Modules); the endpoint
  * itself always answers, so pages cached while the module was on don't break.
@@ -350,7 +351,7 @@ function weavit_imgopt_convert_url( $url, $html_context = true ) {
 
 	$amp = $html_context ? '&amp;' : '&';
 	$memo[ $key ] = preg_replace( '#\.(jpe?g|png)$#i', '.webp', $url )
-		. '?sw=' . $w . $amp . 'sh=' . $h . $amp . 'sm=cut' . $amp . 'sfrm=' . strtolower( $ext ) . $amp . 'q=' . $set['quality'];
+		. '?sw=' . $w . $amp . 'sh=' . $h . $amp . 'sm=cut' . $amp . 'sfrm=' . strtolower( $ext ) . $amp . 'q=' . $set['quality'] . $amp . 'v=' . filemtime( $file );
 	return $memo[ $key ];
 }
 
