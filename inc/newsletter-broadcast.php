@@ -87,20 +87,17 @@ function weavit_broadcast_post_to_subscribers( $post_id ) {
 		return;
 	}
 
-	$site_name = get_bloginfo( 'name' );
-	$subject   = apply_filters( 'weavit_newsletter_subject', sprintf( 'New on the %s blog: %s', $site_name, get_the_title( $post ) ), $post );
 	$excerpt   = has_excerpt( $post ) ? get_the_excerpt( $post ) : wp_trim_words( wp_strip_all_tags( $post->post_content ), 40 );
 	$permalink = get_permalink( $post );
 
+	// Wording and look come from Weavit > Email Templates ("New blog post to subscribers").
 	foreach ( $subscribers as $subscriber ) {
-		$unsubscribe_url = add_query_arg( 'weavit_unsubscribe', $subscriber['token'], home_url( '/' ) );
-
-		$body = $excerpt . "\n\n" . 'Read the full post: ' . $permalink . "\n\n"
-			. '---' . "\n"
-			. 'You\'re receiving this because you subscribed to updates from ' . $site_name . '.' . "\n"
-			. 'Unsubscribe at any time: ' . $unsubscribe_url;
-
-		wp_mail( $subscriber['email'], $subject, apply_filters( 'weavit_newsletter_body', $body, $post, $subscriber ) );
+		weavit_email_send( 'newsletter_post', $subscriber['email'], array(
+			'post_title'      => get_the_title( $post ),
+			'post_excerpt'    => $excerpt,
+			'post_url'        => $permalink,
+			'unsubscribe_url' => add_query_arg( 'weavit_unsubscribe', $subscriber['token'], home_url( '/' ) ),
+		) );
 	}
 }
 

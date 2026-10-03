@@ -102,13 +102,7 @@ function bootg_handle_form_submit() {
 		$settings = bootg_get_form_settings( $form_id );
 		if ( ! empty( $settings['notify_enabled'] ) ) {
 			$to = $settings['notify_email'] ?: ( bootg_get_option( 'email' ) ?: get_option( 'admin_email' ) );
-			/* translators: %s: form title */
-			$subject = sprintf( 'New "%s" submission', $form->post_title );
-			$body    = '';
-			foreach ( $data as $row ) {
-				$body .= $row['label'] . ': ' . $row['value'] . "\n";
-			}
-			wp_mail( $to, $subject, $body );
+			weavit_email_form_notify( $to, $form, $data ); // Wording: Weavit > Email Templates ("Form submission notice").
 		}
 	}
 
