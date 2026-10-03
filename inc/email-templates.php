@@ -436,13 +436,14 @@ function weavit_email_render_page() {
 			$t       = weavit_email_template( $id );
 			$preview = weavit_email_render( $id, $sample );
 			?>
-			<details id="t-<?php echo esc_attr( $id ); ?>" class="postbox" style="max-width:900px;margin:12px 0;padding:0;" <?php echo ( $open === $id ) ? 'open' : ''; ?>>
+			<details id="t-<?php echo esc_attr( $id ); ?>" class="postbox" style="max-width:1360px;margin:12px 0;padding:0;" <?php echo ( $open === $id ) ? 'open' : ''; ?>>
 				<summary style="cursor:pointer;padding:14px 18px;font-size:15px;">
 					<strong><?php echo esc_html( $def['label'] ); ?></strong>
 					<span style="margin-left:8px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;<?php echo $t['enabled'] ? 'background:#e6f4ea;color:#0a7a2f;' : 'background:#f0f0f1;color:#646970;'; ?>"><?php echo $t['enabled'] ? 'On' : 'Off'; ?></span>
 					<span style="display:block;color:#646970;margin-top:3px;font-size:13px;"><?php echo esc_html( $def['audience'] ); ?></span>
 				</summary>
-				<div style="padding:4px 18px 18px;">
+				<div style="padding:4px 18px 18px;display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;">
+					<div style="flex:1 1 440px;min-width:0;">
 					<p class="description"><?php echo esc_html( $def['description'] ); ?></p>
 
 					<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
@@ -489,9 +490,12 @@ function weavit_email_render_page() {
 						</form>
 					</div>
 
-					<p style="margin:18px 0 6px;"><strong>Preview</strong> <span class="description">(sample details; save first to see edits)</span></p>
-					<p style="margin:0 0 6px;color:#646970;font-size:13px;">Subject: <?php echo esc_html( $preview['subject'] ); ?></p>
-					<iframe title="<?php echo esc_attr( $def['label'] ); ?> preview" sandbox="" srcdoc="<?php echo esc_attr( $preview['html'] ); ?>" style="width:100%;height:440px;border:1px solid #dcdcde;background:#fff;"></iframe>
+					</div>
+					<div style="flex:1 1 440px;min-width:0;position:sticky;top:44px;">
+						<p style="margin:14px 0 6px;"><strong>Preview</strong> <span class="description">(sample details; save first to see edits)</span></p>
+						<p style="margin:0 0 6px;color:#646970;font-size:13px;">Subject: <?php echo esc_html( $preview['subject'] ); ?></p>
+						<iframe title="<?php echo esc_attr( $def['label'] ); ?> preview" sandbox="" srcdoc="<?php echo esc_attr( $preview['html'] ); ?>" style="width:100%;height:640px;border:1px solid #dcdcde;background:#fff;"></iframe>
+					</div>
 				</div>
 			</details>
 		<?php endforeach; ?>
