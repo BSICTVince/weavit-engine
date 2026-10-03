@@ -155,7 +155,10 @@ function weavit_imgopt_maybe_serve() {
 	status_header( 200 );
 	header( 'Content-Type: image/webp' );
 	header( 'Content-Length: ' . filesize( $cache ) );
-	header( 'Cache-Control: public, max-age=31536000, immutable' );
+	// A URL carrying the version stamp (v=) changes whenever the image does, so browsers can keep it for a year.
+	// Without it (old cached HTML, a hand-typed link) we can't know it's current, so only allow an hour.
+	$versioned = isset( $query['v'] ) && ctype_digit( (string) $query['v'] );
+	header( 'Cache-Control: public, ' . ( $versioned ? 'max-age=31536000, immutable' : 'max-age=3600, must-revalidate' ) );
 	header( 'ETag: ' . $etag );
 	header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', filemtime( $cache ) ) . ' GMT' );
 	header( 'X-Weavit-Image: webp' );
