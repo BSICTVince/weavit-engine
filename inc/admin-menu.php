@@ -124,6 +124,13 @@ function bootg_module_registry() {
 			'togglable'   => true,
 			'default'     => false,
 		),
+		'seo-suite'      => array(
+			'label'       => 'SEO Suite',
+			'description' => 'Site-wide SEO: automatic titles and descriptions, share cards (Open Graph/Twitter), business schema for Google, sitemap and robots.txt rules, a 404 Monitor and an SEO Analyser. Pauses itself if Rank Math, Yoast, All in One SEO or SEOPress is active. Off by default.',
+			'icon'        => 'dashicons-chart-line',
+			'togglable'   => true,
+			'default'     => false,
+		),
 		'newsletter-broadcast' => array(
 			'label'       => 'Newsletter Broadcast',
 			'description' => 'Emails every newsletter subscriber automatically when a new Blog post is published. Off by default — turning this on starts sending real emails to your subscriber list the moment a post goes live, so it needs a conscious opt-in, unlike every other module here.',

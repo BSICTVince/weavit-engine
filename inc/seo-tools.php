@@ -11,6 +11,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 function bootg_seo_tabs() {
 	return array(
+		'analyser'  => array( 'label' => 'Analyser', 'render' => 'weavit_seo_render_analyser_tab' ),
+		'titles'    => array( 'label' => 'Titles & Social', 'render' => 'weavit_seo_render_titles_tab' ),
+		'schema'    => array( 'label' => 'Schema', 'render' => 'weavit_seo_render_schema_tab' ),
+		'sitemap'   => array( 'label' => 'Sitemap & Robots', 'render' => 'weavit_seo_render_sitemap_tab' ),
+		'notfound'  => array( 'label' => '404 Monitor', 'render' => 'weavit_seo_render_notfound_tab' ),
 		'redirects' => array( 'label' => 'Redirects', 'render' => 'bootg_render_redirects_tab' ),
 		'htaccess'  => array( 'label' => '.htaccess', 'render' => 'bootg_render_htaccess_tab' ),
 	);
@@ -30,7 +35,7 @@ function bootg_render_seo_page() {
 		return;
 	}
 	$tabs    = bootg_seo_tabs();
-	$current = isset( $_GET['tab'] ) && isset( $tabs[ $_GET['tab'] ] ) ? sanitize_key( $_GET['tab'] ) : 'redirects'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only tab selector.
+	$current = isset( $_GET['tab'] ) && isset( $tabs[ $_GET['tab'] ] ) ? sanitize_key( $_GET['tab'] ) : 'analyser'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only tab selector.
 	?>
 	<div class="wrap">
 		<h1>SEO</h1>

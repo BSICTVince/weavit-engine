@@ -3,7 +3,7 @@
  * Plugin Name: Weavit Engine
  * Plugin URI: https://vinceorodazo.com
  * Description: Core reusable engine — custom post types, meta boxes, SEO fields, native SMTP, Site Options, and a custom Forms engine (builder, entries, notifications) — that Weavit-built themes are built on top of. No page builder, no ACF.
- * Version: 0.1.46
+ * Version: 0.1.47
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Weavit | Vince O. Dazo
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WEAVIT_ENGINE_VERSION', '0.1.46' );
+define( 'WEAVIT_ENGINE_VERSION', '0.1.47' );
 define( 'WEAVIT_ENGINE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WEAVIT_ENGINE_URI', plugin_dir_url( __FILE__ ) );
 
@@ -46,6 +46,10 @@ require_once WEAVIT_ENGINE_DIR . 'inc/forms/forms-submit.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/forms/forms-admin.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/recaptcha.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/seo-tools.php';
+require_once WEAVIT_ENGINE_DIR . 'inc/seo-suite.php';
+require_once WEAVIT_ENGINE_DIR . 'inc/seo-schema.php';
+require_once WEAVIT_ENGINE_DIR . 'inc/seo-404.php';
+require_once WEAVIT_ENGINE_DIR . 'inc/seo-analyser.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/redirects.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/redirects-admin.php';
 require_once WEAVIT_ENGINE_DIR . 'inc/htaccess-editor.php';

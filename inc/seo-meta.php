@@ -33,6 +33,20 @@ add_action( 'init', function () {
 	}
 } );
 
+add_action( 'init', function () {
+	foreach ( bootg_seo_post_types() as $post_type ) {
+		register_post_meta( $post_type, 'seo_noindex', array(
+			'single'            => true,
+			'type'              => 'boolean',
+			'show_in_rest'      => true,
+			'sanitize_callback' => 'rest_sanitize_boolean',
+			'auth_callback'     => function () {
+				return current_user_can( 'edit_posts' );
+			},
+		) );
+	}
+} );
+
 // Contributes an "SEO" tab to the Weavit sidebar panel (inc/editor-panel.php)
 // instead of its own classic meta box — same register_post_meta() fields above.
 add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
@@ -57,6 +71,11 @@ add_filter( 'weavit_editor_panel_tabs', function ( $tabs, $post_type ) {
 				'label' => 'Keywords',
 				'type'  => 'text',
 				'help'  => 'Comma-separated. Largely ignored by modern search engines, kept for completeness.',
+			),
+			'seo_noindex'      => array(
+				'label' => 'Hide from search engines',
+				'type'  => 'checkbox',
+				'help'  => 'Tells Google not to list this page and leaves it out of the sitemap. Needs the SEO Suite switched on.',
 			),
 		),
 	);

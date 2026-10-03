@@ -74,6 +74,21 @@ function weavit_menu_groups() {
 		),
 	);
 
+	$groups['seo'] = array(
+		'hub'      => 'bootg-seo',
+		'label'    => 'SEO',
+		'children' => array(),
+		'items'    => array(
+			array( 'Analyser', admin_url( 'admin.php?page=bootg-seo&tab=analyser' ), 'tab=analyser', 'page=bootg-seo' ),
+			array( 'Titles & Social', admin_url( 'admin.php?page=bootg-seo&tab=titles' ), 'tab=titles' ),
+			array( 'Schema', admin_url( 'admin.php?page=bootg-seo&tab=schema' ), 'tab=schema' ),
+			array( 'Sitemap & Robots', admin_url( 'admin.php?page=bootg-seo&tab=sitemap' ), 'tab=sitemap' ),
+			array( '404 Monitor', admin_url( 'admin.php?page=bootg-seo&tab=notfound' ), 'tab=notfound' ),
+			array( 'Redirects', admin_url( 'admin.php?page=bootg-seo&tab=redirects' ), 'tab=redirects' ),
+			array( '.htaccess', admin_url( 'admin.php?page=bootg-seo&tab=htaccess' ), 'tab=htaccess' ),
+		),
+	);
+
 	if ( weavit_bk_active() ) {
 		$groups['bookkeeping'] = array(
 			'hub'      => 'weavit-bookkeeping',
@@ -156,7 +171,10 @@ add_action( 'admin_footer', function () {
 				// "page=x" must not also count as current on "page=x-new": the match has to end the value.
 				var m = here.indexOf(item[2]);
 				var next = m > -1 ? here.charAt(m + item[2].length) : null;
-				if (m > -1 && (next === '' || next === '&' || next === '#')) {
+				var isHere = m > -1 && (next === '' || next === '&' || next === '#');
+				// An item may also count as current on the group's bare page address (no tab chosen yet).
+				if (!isHere && item[3] && here.indexOf(item[3]) > -1 && here.indexOf('tab=') === -1) { isHere = true; }
+				if (isHere) {
 					li.className = 'current';
 					hub.classList.add('current');
 				}
