@@ -7,10 +7,11 @@
  *
  *   signup form  ->  entry saved (pending) + confirmation email
  *   click link   ->  entry confirmed  ->  included in newsletter broadcasts
+ *                                         (+ optional welcome email)
  *
  * Entries made before this existed have no status and count as confirmed.
- * The email goes out through wp_mail(), i.e. the SMTP settings; wording and
- * on/off live on Weavit > Newsletter.
+ * The emails themselves (wording, on/off, tests) are edited on
+ * Weavit > Email Templates (inc/email-templates.php).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,8 +23,6 @@ define( 'WEAVIT_NEWSLETTER_OPTION', 'weavit_newsletter_settings' );
 function weavit_newsletter_defaults() {
 	return array(
 		'require_confirmation' => 1,
-		'subject'              => 'Confirm your subscription to {site_name}',
-		'body'                 => "Hello,\n\nYou've received this message because you subscribed to {site_name}. Please confirm your subscription to receive emails from us:\n\n{confirm_link}\n\nThank you,\n\n{site_name}\n\nIf you received this email by mistake, simply delete it. You won't receive any more emails from us unless you confirm your subscription using the link above.",
 		'after_signup'         => 'Almost done — we\'ve emailed you a link. Please click it to confirm your subscription.',
 	);
 }
@@ -36,41 +35,31 @@ function weavit_newsletter_site_name() {
 	return wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
 }
 
-/** Swaps {site_name} / {confirm_link} into a template. $html: build a real link; false: a plain-text line. */
-function weavit_newsletter_fill( $text, $confirm_url, $html ) {
-	$link = $html
-		? '<a href="' . esc_url( $confirm_url ) . '" style="color:#643486;font-weight:700;">Click here to confirm your subscription</a>'
-		: 'Click here to confirm your subscription: ' . $confirm_url;
-	return str_replace( array( '{site_name}', '{confirm_link}' ), array( $html ? esc_html( weavit_newsletter_site_name() ) : weavit_newsletter_site_name(), $link ), $text );
+/** The email address on a newsletter entry, or ''. */
+function weavit_newsletter_entry_email( $entry_id ) {
+	foreach ( (array) bootg_get_entry_data( $entry_id ) as $row ) {
+		if ( isset( $row['value'] ) && is_email( $row['value'] ) ) {
+			return $row['value'];
+		}
+	}
+	return '';
 }
 
-/** Sends the confirmation email. $preview marks it as a test (the link inside won't confirm anything). Returns true if handed to the mailer. */
-function weavit_newsletter_send_confirmation( $to, $token, $preview = false ) {
-	$s       = weavit_newsletter_settings();
-	$url     = add_query_arg( array( 'weavit_subscription' => 'confirm', 'token' => $token ), home_url( '/' ) );
-	$subject = ( $preview ? '[Preview] ' : '' ) . str_replace( '{site_name}', weavit_newsletter_site_name(), $s['subject'] );
+/** One-click unsubscribe address for an entry (the token is created on first use). */
+function weavit_newsletter_unsubscribe_url( $entry_id ) {
+	$token = get_post_meta( $entry_id, '_weavit_unsubscribe_token', true );
+	if ( ! $token ) {
+		$token = wp_generate_password( 32, false );
+		update_post_meta( $entry_id, '_weavit_unsubscribe_token', $token );
+	}
+	return add_query_arg( 'weavit_unsubscribe', $token, home_url( '/' ) );
+}
 
-	$body_html = wpautop( weavit_newsletter_fill( esc_html( $s['body'] ), $url, true ) );
-	$html      = '<div style="background:#f7f3fa;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">'
-		. '<div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;padding:32px;color:#1d1a20;font-size:16px;line-height:1.6;">'
-		. '<h2 style="margin:0 0 18px;color:#3b2350;font-size:22px;">' . esc_html( weavit_newsletter_site_name() ) . '</h2>'
-		. $body_html
-		. '</div></div>';
-	$plain     = wp_strip_all_tags( weavit_newsletter_fill( $s['body'], $url, false ) );
-
-	$set_type = function () {
-		return 'text/html';
-	};
-	$set_alt  = function ( $phpmailer ) use ( $plain ) {
-		$phpmailer->AltBody = $plain; // Plain-text version for mail apps that don't show HTML.
-	};
-	add_filter( 'wp_mail_content_type', $set_type );
-	add_action( 'phpmailer_init', $set_alt );
-	$sent = wp_mail( $to, $subject, $html );
-	remove_filter( 'wp_mail_content_type', $set_type );
-	remove_action( 'phpmailer_init', $set_alt );
-
-	return (bool) $sent;
+/** Sends the confirmation email (Email Templates > Newsletter confirmation). Returns true if handed to the mailer. */
+function weavit_newsletter_send_confirmation( $to, $token ) {
+	return weavit_email_send( 'newsletter_confirm', $to, array(
+		'confirm_url' => add_query_arg( array( 'weavit_subscription' => 'confirm', 'token' => $token ), home_url( '/' ) ),
+	) );
 }
 
 /* ---------------------------------------------------------------------
@@ -158,6 +147,11 @@ add_action( 'template_redirect', function () {
 			update_post_meta( $id, '_weavit_sub_confirmed', time() );
 			$title = 'You\'re subscribed';
 			$msg   = 'Thank you — your subscription to ' . $site . ' is confirmed. You\'ll now receive our latest updates.';
+
+			$email = weavit_newsletter_entry_email( $id );
+			if ( $email ) {
+				weavit_email_send( 'newsletter_welcome', $email, array( 'unsubscribe_url' => weavit_newsletter_unsubscribe_url( $id ) ) ); // Off unless switched on in Email Templates.
+			}
 		}
 	}
 
@@ -176,7 +170,7 @@ add_action( 'template_redirect', function () {
 } );
 
 /* ---------------------------------------------------------------------
- * 3. Weavit > Newsletter: settings, preview email, subscriber list
+ * 3. Weavit > Newsletter: on/off, message after Subscribe, subscriber list
  * ------------------------------------------------------------------- */
 
 add_action( 'admin_menu', function () {
@@ -193,28 +187,11 @@ add_action( 'admin_post_weavit_newsletter_save', function () {
 	}
 	check_admin_referer( 'weavit_newsletter_save' );
 	$d = weavit_newsletter_defaults();
-	update_option( WEAVIT_NEWSLETTER_OPTION, array(
+	update_option( WEAVIT_NEWSLETTER_OPTION, array_merge( (array) get_option( WEAVIT_NEWSLETTER_OPTION, array() ), array(
 		'require_confirmation' => empty( $_POST['require_confirmation'] ) ? 0 : 1,
-		'subject'              => sanitize_text_field( wp_unslash( $_POST['subject'] ?? '' ) ) ?: $d['subject'],
-		'body'                 => sanitize_textarea_field( wp_unslash( $_POST['body'] ?? '' ) ) ?: $d['body'],
 		'after_signup'         => sanitize_text_field( wp_unslash( $_POST['after_signup'] ?? '' ) ) ?: $d['after_signup'],
-	) );
+	) ) );
 	wp_safe_redirect( weavit_newsletter_back( array( 'saved' => 1 ) ) );
-	exit;
-} );
-
-add_action( 'admin_post_weavit_newsletter_preview', function () {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( 'Not allowed.' );
-	}
-	check_admin_referer( 'weavit_newsletter_preview' );
-	$to = sanitize_email( wp_unslash( $_POST['preview_to'] ?? '' ) );
-	if ( ! is_email( $to ) ) {
-		wp_safe_redirect( weavit_newsletter_back( array( 'preview' => 'invalid' ) ) );
-		exit;
-	}
-	$ok = weavit_newsletter_send_confirmation( $to, 'preview', true );
-	wp_safe_redirect( weavit_newsletter_back( array( 'preview' => $ok ? 'sent' : 'failed', 'to' => rawurlencode( $to ) ) ) );
 	exit;
 } );
 
@@ -225,14 +202,8 @@ add_action( 'admin_post_weavit_newsletter_resend', function () {
 	check_admin_referer( 'weavit_newsletter_resend' );
 	$entry = absint( $_GET['entry'] ?? 0 );
 	$token = get_post_meta( $entry, '_weavit_confirm_token', true );
-	$email = '';
-	foreach ( (array) bootg_get_entry_data( $entry ) as $row ) {
-		if ( is_email( $row['value'] ) ) {
-			$email = $row['value'];
-			break;
-		}
-	}
-	$ok = $token && $email && 'pending' === get_post_meta( $entry, '_weavit_sub_status', true );
+	$email = weavit_newsletter_entry_email( $entry );
+	$ok    = $token && $email && 'pending' === get_post_meta( $entry, '_weavit_sub_status', true );
 	if ( $ok ) {
 		update_post_meta( $entry, '_weavit_sub_requested', time() ); // Fresh 7 days.
 		$ok = weavit_newsletter_send_confirmation( $email, $token );
@@ -254,19 +225,11 @@ function weavit_newsletter_render_page() {
 	if ( $form_id ) {
 		$query = bootg_get_form_entries( $form_id, array( 'posts_per_page' => 200 ) );
 		foreach ( $query->posts as $entry ) {
-			$email = '';
-			foreach ( bootg_get_entry_data( $entry->ID ) as $row ) {
-				if ( is_email( $row['value'] ) ) {
-					$email = $row['value'];
-					break;
-				}
-			}
 			$status = get_post_meta( $entry->ID, '_weavit_sub_status', true );
 			'pending' === $status ? ++$pending : ++$confirmed;
-			$rows[] = array( $entry->ID, $email, 'pending' === $status ? 'pending' : 'confirmed', $entry->post_date );
+			$rows[] = array( $entry->ID, weavit_newsletter_entry_email( $entry->ID ), 'pending' === $status ? 'pending' : 'confirmed', $entry->post_date );
 		}
 	}
-	$sent_test = isset( $_GET['preview'] ) ? sanitize_key( wp_unslash( $_GET['preview'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 	?>
 	<div class="wrap">
 		<h1>Newsletter</h1>
@@ -274,38 +237,20 @@ function weavit_newsletter_render_page() {
 		<?php if ( isset( $_GET['saved'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
 		<?php endif; ?>
-		<?php if ( 'sent' === $sent_test ) : ?>
-			<div class="notice notice-success is-dismissible"><p>Preview email handed to the mailer for <strong><?php echo esc_html( rawurldecode( sanitize_text_field( wp_unslash( $_GET['to'] ?? '' ) ) ) ); // phpcs:ignore WordPress.Security.NonceVerification ?></strong>. If it doesn't arrive, check your SMTP settings (Weavit &rarr; SMTP) and your spam folder.</p></div>
-		<?php elseif ( 'failed' === $sent_test ) : ?>
-			<div class="notice notice-error"><p>The mailer couldn't send the preview. Check Weavit &rarr; SMTP.</p></div>
-		<?php elseif ( 'invalid' === $sent_test ) : ?>
-			<div class="notice notice-error"><p>Please enter a valid email address.</p></div>
-		<?php endif; ?>
 		<?php if ( isset( $_GET['resend'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-<?php echo 'sent' === $_GET['resend'] ? 'success' : 'error'; // phpcs:ignore ?> is-dismissible"><p><?php echo 'sent' === $_GET['resend'] ? 'Confirmation email sent again.' : 'Couldn\'t resend that confirmation email.'; // phpcs:ignore ?></p></div>
 		<?php endif; ?>
 
-		<p style="max-width:780px;">When someone signs up with the newsletter form, they get a confirmation email and only join the list once they click the link in it. Pending sign-ups are never sent newsletters.</p>
+		<p style="max-width:780px;">When someone signs up with the newsletter form, they get a confirmation email and only join the list once they click the link in it. Pending sign-ups are never sent newsletters. The wording of the confirmation, welcome and new-post emails is edited under <a href="<?php echo esc_url( admin_url( 'admin.php?page=weavit-emails' ) ); ?>">Weavit &rarr; Email Templates</a>.</p>
 
 		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
 			<?php wp_nonce_field( 'weavit_newsletter_save' ); ?>
 			<input type="hidden" name="action" value="weavit_newsletter_save">
 			<table class="form-table" role="presentation">
-				<tr><th>Email confirmation</th><td><label><input type="checkbox" name="require_confirmation" value="1" <?php checked( $s['require_confirmation'] ); ?>> Require new subscribers to confirm by email</label><p class="description">Untick to add people to the list immediately (not recommended — a confirmed list is what keeps your emails out of spam and meets Australian Spam Act consent rules).</p></td></tr>
-				<tr><th><label for="subject">Email subject</label></th><td><input type="text" id="subject" name="subject" class="large-text" value="<?php echo esc_attr( $s['subject'] ); ?>"></td></tr>
-				<tr><th><label for="body">Email message</label></th><td><textarea id="body" name="body" rows="12" class="large-text"><?php echo esc_textarea( $s['body'] ); ?></textarea><p class="description">Plain text; blank lines start a new paragraph. <code>{site_name}</code> becomes the site name and <code>{confirm_link}</code> becomes the "Click here to confirm your subscription" link — keep that one in.</p></td></tr>
+				<tr><th>Email confirmation</th><td><label><input type="checkbox" name="require_confirmation" value="1" <?php checked( $s['require_confirmation'] ); ?>> Require new subscribers to confirm by email</label><p class="description">Untick to add people to the list immediately (not recommended — a confirmed list keeps your emails out of spam and meets Australian Spam Act consent rules).</p></td></tr>
 				<tr><th><label for="after_signup">Message after Subscribe</label></th><td><input type="text" id="after_signup" name="after_signup" class="large-text" value="<?php echo esc_attr( $s['after_signup'] ); ?>"></td></tr>
 			</table>
 			<?php submit_button( 'Save Settings' ); ?>
-		</form>
-
-		<h2>Send a preview</h2>
-		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-			<?php wp_nonce_field( 'weavit_newsletter_preview' ); ?>
-			<input type="hidden" name="action" value="weavit_newsletter_preview">
-			<input type="email" name="preview_to" placeholder="name@example.com" class="regular-text" required>
-			<?php submit_button( 'Send preview email', 'secondary', 'submit', false ); ?>
-			<p class="description">Sends the confirmation email exactly as subscribers get it. The link in a preview doesn't confirm anything.</p>
 		</form>
 
 		<h2 style="margin-top:28px;">Subscribers <span style="font-weight:400;font-size:14px;">— <?php echo (int) $confirmed; ?> confirmed, <?php echo (int) $pending; ?> waiting for confirmation</span></h2>
@@ -313,7 +258,7 @@ function weavit_newsletter_render_page() {
 			<p>No sign-ups yet.</p>
 		<?php else : ?>
 			<table class="widefat striped" style="max-width:860px;">
-				<thead><tr><th>Email</th><th style="width:140px;">Status</th><th style="width:170px;">Signed up</th><th style="width:150px;"></th></tr></thead>
+				<thead><tr><th>Email</th><th style="width:170px;">Status</th><th style="width:170px;">Signed up</th><th style="width:130px;"></th></tr></thead>
 				<tbody>
 				<?php foreach ( $rows as $row ) : ?>
 					<tr>
