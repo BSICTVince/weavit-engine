@@ -272,6 +272,9 @@ add_action( 'admin_post_weavit_imgopt_save', function () {
 		wp_die( 'Not allowed.' );
 	}
 	check_admin_referer( 'weavit_imgopt_save' );
+	$modules                    = get_option( BOOTG_ENABLED_MODULES_OPTION, array() );
+	$modules['image-optimizer'] = ! empty( $_POST['enabled'] );
+	update_option( BOOTG_ENABLED_MODULES_OPTION, $modules );
 	update_option( WEAVIT_IMGOPT_OPTION, array(
 		'threshold_kb' => min( 5000, max( 50, absint( $_POST['threshold_kb'] ?? 250 ) ) ),
 		'quality'      => min( 95, max( 30, absint( $_POST['quality'] ?? 85 ) ) ),
@@ -358,6 +361,7 @@ function weavit_imgopt_render_page() {
 			<?php wp_nonce_field( 'weavit_imgopt_save' ); ?>
 			<input type="hidden" name="action" value="weavit_imgopt_save">
 			<table class="form-table" role="presentation">
+				<tr><th>Image Optimizer</th><td><label><input type="checkbox" name="enabled" value="1" <?php checked( $enabled ); ?>> Enable — serve big images as WebP on the front-end</label><p class="description">Untick and save to switch it off: pages go back to the original images straight away. Already-cached WebP links keep working.</p></td></tr>
 				<tr><th><label for="threshold_kb">Optimize images larger than</label></th><td><input type="number" id="threshold_kb" name="threshold_kb" value="<?php echo (int) $s['threshold_kb']; ?>" min="50" max="5000" class="small-text"> KB</td></tr>
 				<tr><th><label for="quality">WebP quality</label></th><td><input type="number" id="quality" name="quality" value="<?php echo (int) $s['quality']; ?>" min="30" max="95" class="small-text"> <span class="description">(85 is a good balance)</span></td></tr>
 				<tr><th><label for="max_width">Maximum width</label></th><td><input type="number" id="max_width" name="max_width" value="<?php echo (int) $s['max_width']; ?>" min="320" max="4000" class="small-text"> px <span class="description">(wider images are scaled down, never up)</span></td></tr>
