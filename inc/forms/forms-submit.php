@@ -90,6 +90,15 @@ function bootg_handle_form_submit() {
 		update_post_meta( $entry_id, '_bootg_entry_form_id', $form_id );
 		update_post_meta( $entry_id, '_bootg_entry_data', $data );
 
+		/**
+		 * Fires once a submission has been saved as an entry.
+		 *
+		 * @param int   $entry_id The new entry's post ID.
+		 * @param int   $form_id  The form it was submitted through.
+		 * @param array $data     Rows of array( 'label' => ..., 'value' => ... ).
+		 */
+		do_action( 'bootg_form_entry_saved', $entry_id, $form_id, $data );
+
 		$settings = bootg_get_form_settings( $form_id );
 		if ( ! empty( $settings['notify_enabled'] ) ) {
 			$to = $settings['notify_email'] ?: ( bootg_get_option( 'email' ) ?: get_option( 'admin_email' ) );

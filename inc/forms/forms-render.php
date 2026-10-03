@@ -39,7 +39,7 @@ function bootg_render_form( $form_id ) {
 	$status = '';
 	if ( isset( $_GET['bootg_form'] ) && (int) $_GET['bootg_form'] === $form_id ) {
 		if ( 'success' === ( $_GET['status'] ?? '' ) ) {
-			$status = '<p class="bootg-form-msg bootg-form-msg--success" role="status">' . esc_html( $settings['success_message'] ) . '</p>';
+			$status = '<p class="bootg-form-msg bootg-form-msg--success" role="status">' . esc_html( apply_filters( 'bootg_form_success_message', $settings['success_message'], $form_id ) ) . '</p>';
 		} elseif ( 'recaptcha' === ( $_GET['status'] ?? '' ) ) {
 			$status = '<p class="bootg-form-msg bootg-form-msg--error" role="alert">We couldn\'t verify you\'re human — please try again.</p>';
 		} elseif ( 'error' === ( $_GET['status'] ?? '' ) ) {

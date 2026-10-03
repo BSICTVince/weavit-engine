@@ -42,6 +42,10 @@ function weavit_newsletter_subscribers() {
 	$subscribers = array();
 
 	foreach ( $query->posts as $entry ) {
+		// Double opt-in (inc/newsletter-confirm.php): sign-ups that haven't clicked their confirmation link yet get nothing.
+		if ( 'pending' === get_post_meta( $entry->ID, '_weavit_sub_status', true ) ) {
+			continue;
+		}
 		$email = '';
 		foreach ( bootg_get_entry_data( $entry->ID ) as $row ) {
 			if ( in_array( $row['label'], $email_labels, true ) && is_email( $row['value'] ) ) {
