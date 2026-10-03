@@ -218,15 +218,20 @@ add_action( 'template_redirect', function () {
 	ob_start( 'weavit_imgopt_filter_html' );
 }, 1 );
 
-/** Returns the optimized URL for a local JPG/PNG over the threshold, or the URL unchanged. */
-function weavit_imgopt_convert_url( $url ) {
+/**
+ * Returns the optimized URL for a local JPG/PNG over the threshold, or the URL
+ * unchanged. $html_context: true when the URL sits inside an HTML attribute
+ * (query separators are written as &amp;), false inside a raw <style> block.
+ */
+function weavit_imgopt_convert_url( $url, $html_context = true ) {
 	static $memo = array();
-	if ( isset( $memo[ $url ] ) ) {
-		return $memo[ $url ];
+	$key = ( $html_context ? 'h|' : 'c|' ) . $url;
+	if ( isset( $memo[ $key ] ) ) {
+		return $memo[ $key ];
 	}
-	$memo[ $url ] = $url;
+	$memo[ $key ] = $url;
 
-	if ( ! preg_match( '#\.(jpe?g|png)$#i', $url, $m ) || false !== strpos( $url, '?' ) ) {
+	if ( ! preg_match( '#\.(jpe?g|png)$#i', $url, $m ) || false !== strpos( $url, '?' ) || 0 === stripos( $url, 'data:' ) ) {
 		return $url;
 	}
 	$ext  = $m[1];
@@ -236,6 +241,9 @@ function weavit_imgopt_convert_url( $url ) {
 	}
 	$path = (string) wp_parse_url( $url, PHP_URL_PATH );
 	$base = (string) wp_parse_url( content_url(), PHP_URL_PATH );
+	if ( ! $host && 0 !== strpos( $path, '/' ) && 0 === strpos( $path, ltrim( $base, '/' ) . '/' ) ) {
+		$path = '/' . $path; // "wp-content/uploads/x.png" written without the leading slash.
+	}
 	if ( 0 !== strpos( $path, $base . '/' ) ) {
 		return $url;
 	}
@@ -257,40 +265,90 @@ function weavit_imgopt_convert_url( $url ) {
 		$w = $set['max_width'];
 	}
 
-	$memo[ $url ] = preg_replace( '#\.(jpe?g|png)$#i', '.webp', $url )
-		. '?sw=' . $w . '&amp;sh=' . $h . '&amp;sm=cut&amp;sfrm=' . strtolower( $ext ) . '&amp;q=' . $set['quality'];
-	return $memo[ $url ];
+	$amp = $html_context ? '&amp;' : '&';
+	$memo[ $key ] = preg_replace( '#\.(jpe?g|png)$#i', '.webp', $url )
+		. '?sw=' . $w . $amp . 'sh=' . $h . $amp . 'sm=cut' . $amp . 'sfrm=' . strtolower( $ext ) . $amp . 'q=' . $set['quality'];
+	return $memo[ $key ];
 }
 
+/** Rewrites every url(...) in a chunk of CSS: quoted, unquoted, or with HTML-escaped quotes (&quot;). */
+function weavit_imgopt_filter_css( $css, $html_context ) {
+	if ( false === stripos( $css, 'url(' ) ) {
+		return $css;
+	}
+	return preg_replace_callback(
+		'/url\(\s*(?:(&quot;|&#0*39;|&#x27;|"|\')\s*([^\'"()\s&]+?)\s*\1|([^\'"()\s&]+?))\s*\)/i',
+		function ( $m ) use ( $html_context ) {
+			$quoted = isset( $m[2] ) && '' !== $m[2];
+			$url    = $quoted ? $m[2] : ( $m[3] ?? '' );
+			if ( '' === $url ) {
+				return $m[0];
+			}
+			$new = weavit_imgopt_convert_url( $url, $html_context );
+			if ( $new === $url ) {
+				return $m[0];
+			}
+			return 'url(' . ( $quoted ? $m[1] . $new . $m[1] : $new ) . ')';
+		},
+		$css
+	);
+}
+
+/** Rewrites one srcset-style value ("a.jpg 1x, b.jpg 2x"). */
+function weavit_imgopt_filter_srcset( $value ) {
+	$items = array_map( function ( $item ) {
+		$bits = preg_split( '/\s+/', trim( $item ), 2 );
+		return weavit_imgopt_convert_url( $bits[0] ) . ( isset( $bits[1] ) ? ' ' . $bits[1] : '' );
+	}, explode( ',', $value ) );
+	return implode( ', ', $items );
+}
+
+/**
+ * The whole page, after WordPress has finished building it. Covers:
+ *   - <img>/<source>/<video poster>/lazy-load attributes (data-src, data-bg, ...)
+ *   - <link rel="preload" as="image">
+ *   - inline style="background-image:url(...)" on any element
+ *   - <style> blocks (CSS that a theme/page builder prints into the page)
+ * Whatever produced the markup (theme, page builder, shortcode), it all
+ * passes through here, so it works on any WordPress site. External .css
+ * files are not touched (they're static files WordPress never sees).
+ */
 function weavit_imgopt_filter_html( $html ) {
-	if ( ! is_string( $html ) || '' === $html || ( false === stripos( $html, '<img' ) && false === stripos( $html, '<source' ) && false === stripos( $html, 'url(' ) ) ) {
+	if ( ! is_string( $html ) || '' === $html || ( false === stripos( $html, '.jpg' ) && false === stripos( $html, '.jpeg' ) && false === stripos( $html, '.png' ) ) ) {
 		return $html;
 	}
 
-	// <img> / <source>: src, data-src, srcset, data-srcset.
-	$html = preg_replace_callback( '/<(?:img|source)\b[^>]*>/i', function ( $tag ) {
-		return preg_replace_callback( '/\b(src|data-src|srcset|data-srcset)\s*=\s*(["\'])(.*?)\2/is', function ( $a ) {
-			$name = strtolower( $a[1] );
-			if ( 'srcset' === $name || 'data-srcset' === $name ) {
-				$items = array_map( function ( $item ) {
-					$bits = preg_split( '/\s+/', trim( $item ), 2 );
-					return weavit_imgopt_convert_url( $bits[0] ) . ( isset( $bits[1] ) ? ' ' . $bits[1] : '' );
-				}, explode( ',', $a[3] ) );
-				return $a[1] . '=' . $a[2] . implode( ', ', $items ) . $a[2];
+	// Every start tag: pick out the attributes that can hold an image.
+	$html = preg_replace_callback( '/<[a-z][a-z0-9-]*\b[^>]*>/i', function ( $tag ) {
+		$is_image_preload = (bool) preg_match( '/^<link\b/i', $tag[0] ) && (bool) preg_match( '/\bas\s*=\s*["\']?image\b/i', $tag[0] );
+
+		return preg_replace_callback( '/(?<![\w-])([a-z][a-z0-9_:-]*)\s*=\s*(["\'])(.*?)\2/is', function ( $a ) use ( $is_image_preload ) {
+			$name  = strtolower( $a[1] );
+			$value = $a[3];
+			$quote = $a[2];
+
+			if ( 'style' === $name ) {
+				return $a[1] . '=' . $quote . weavit_imgopt_filter_css( $value, true ) . $quote;
 			}
-			return $a[1] . '=' . $a[2] . weavit_imgopt_convert_url( $a[3] ) . $a[2];
+			if ( false !== strpos( $name, 'srcset' ) ) {
+				return $a[1] . '=' . $quote . weavit_imgopt_filter_srcset( $value ) . $quote;
+			}
+			if ( 'src' === $name || 'poster' === $name || 0 === strpos( $name, 'data-' ) || ( 'href' === $name && $is_image_preload ) ) {
+				if ( false !== stripos( $value, 'url(' ) ) {
+					return $a[1] . '=' . $quote . weavit_imgopt_filter_css( $value, true ) . $quote; // e.g. data-bg="url(image.png)"
+				}
+				$trimmed = trim( $value );
+				if ( $trimmed === $value && ! preg_match( '/\s/', $value ) ) {
+					return $a[1] . '=' . $quote . weavit_imgopt_convert_url( $value ) . $quote;
+				}
+			}
+			return $a[0];
 		}, $tag[0] );
 	}, $html );
 
-	// Inline style="...url(...)..." backgrounds.
-	$html = preg_replace_callback( '/\bstyle\s*=\s*(["\'])(.*?)\1/is', function ( $s ) {
-		if ( false === stripos( $s[2], 'url(' ) ) {
-			return $s[0];
-		}
-		$css = preg_replace_callback( '/url\(\s*([\'"]?)([^\'")]+)\1\s*\)/i', function ( $u ) {
-			return 'url(' . $u[1] . weavit_imgopt_convert_url( trim( $u[2] ) ) . $u[1] . ')';
-		}, $s[2] );
-		return 'style=' . $s[1] . $css . $s[1];
+	// CSS printed straight into the page: <style> ... </style>.
+	$html = preg_replace_callback( '/(<style\b[^>]*>)(.*?)(<\/style>)/is', function ( $m ) {
+		return $m[1] . weavit_imgopt_filter_css( $m[2], false ) . $m[3];
 	}, $html );
 
 	return $html;
