@@ -111,6 +111,12 @@ function bootg_module_registry() {
 			'icon'        => 'dashicons-search',
 			'togglable'   => true,
 		),
+		'cache-tools'    => array(
+			'label'       => 'Cache Tools',
+			'description' => 'A Cache menu in the toolbar (next to Customize) and a Weavit > Cache page to purge the WebP image cache, your page-cache plugin (LiteSpeed Cache, WP Rocket and others) and the object cache — plus automatic purging when images are deleted.',
+			'icon'        => 'dashicons-update',
+			'togglable'   => true,
+		),
 		'image-optimizer' => array(
 			'label'       => 'Image Optimizer',
 			'description' => 'Serves big JPG/PNG images (over 250 KB by default) as resized WebP on the front-end, converted on the fly and cached. The original files are never changed. Off by default — turn it on once your host serves the images correctly (see the Image Optimizer page).',

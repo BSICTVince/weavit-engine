@@ -157,7 +157,7 @@ function weavit_imgopt_maybe_serve() {
 	header( 'Content-Length: ' . filesize( $cache ) );
 	// A URL carrying the version stamp (v=) changes whenever the image does, so browsers can keep it for a year.
 	// Without it (old cached HTML, a hand-typed link) we can't know it's current, so only allow an hour.
-	$versioned = isset( $query['v'] ) && ctype_digit( (string) $query['v'] );
+	$versioned = isset( $query['v'] ) && ctype_digit( (string) $query['v'] ) && (int) $query['v'] === (int) filemtime( $file );
 	header( 'Cache-Control: public, ' . ( $versioned ? 'max-age=31536000, immutable' : 'max-age=3600, must-revalidate' ) );
 	header( 'ETag: ' . $etag );
 	header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', filemtime( $cache ) ) . ' GMT' );
@@ -202,13 +202,55 @@ function weavit_imgopt_generate( $source, $dest, $sw, $sh, $mode, $quality ) {
 	if ( is_wp_error( $saved ) || empty( $saved['path'] ) || ! is_file( $saved['path'] ) ) {
 		return false;
 	}
-	return rename( $saved['path'], $dest ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( ! rename( $saved['path'], $dest ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions
+		return false;
+	}
+	weavit_imgopt_purge_file( $source, filemtime( $source ) ); // Drop copies made from an older version of this file.
+	return true;
 }
 
 /** Where the converted WebP for these exact settings lives (whether or not it exists yet). */
 function weavit_imgopt_cache_path( $file, $sw, $sh, $mode, $quality ) {
-	$key = md5( $file . '|' . filemtime( $file ) . '|' . $sw . 'x' . $sh . '|' . $mode . '|' . $quality );
-	return weavit_imgopt_cache_dir() . '/' . substr( $key, 0, 2 ) . '/' . $key . '.webp';
+	$file = realpath( $file ) ?: $file;
+	$fid  = substr( md5( $file ), 0, 12 );
+	$name = $fid . '-' . filemtime( $file ) . '-' . substr( md5( $sw . 'x' . $sh . '|' . $mode . '|' . $quality ), 0, 10 ) . '.webp';
+	return weavit_imgopt_cache_dir() . '/' . substr( $fid, 0, 2 ) . '/' . $name;
+}
+
+/**
+ * Deletes the cached WebP copies of one original file (every size/quality).
+ * $keep_mtime: leave the copies made from this version of the file alone, so
+ * only stale copies of an overwritten image are removed. Returns the count.
+ */
+function weavit_imgopt_purge_file( $file, $keep_mtime = null ) {
+	$file    = realpath( $file ) ?: $file;
+	$fid     = substr( md5( $file ), 0, 12 );
+	$removed = 0;
+	foreach ( (array) glob( weavit_imgopt_cache_dir() . '/' . substr( $fid, 0, 2 ) . '/' . $fid . '-*.webp' ) as $copy ) {
+		if ( null !== $keep_mtime && 0 === strpos( basename( $copy ), $fid . '-' . $keep_mtime . '-' ) ) {
+			continue;
+		}
+		if ( @unlink( $copy ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			++$removed;
+		}
+	}
+	return $removed;
+}
+
+/** Empties the whole WebP cache. Returns how many files were removed. */
+function weavit_imgopt_clear_cache() {
+	$dir     = weavit_imgopt_cache_dir();
+	$removed = 0;
+	if ( is_dir( $dir ) ) {
+		foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST ) as $f ) {
+			if ( $f->isDir() ) {
+				@rmdir( $f->getPathname() ); // phpcs:ignore
+			} elseif ( @unlink( $f->getPathname() ) ) { // phpcs:ignore
+				++$removed;
+			}
+		}
+	}
+	return $removed;
 }
 
 /**
@@ -473,13 +515,7 @@ add_action( 'admin_post_weavit_imgopt_clear', function () {
 		wp_die( 'Not allowed.' );
 	}
 	check_admin_referer( 'weavit_imgopt_clear' );
-	$dir = weavit_imgopt_cache_dir();
-	if ( is_dir( $dir ) ) {
-		$it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );
-		foreach ( $it as $f ) {
-			$f->isDir() ? @rmdir( $f->getPathname() ) : @unlink( $f->getPathname() ); // phpcs:ignore
-		}
-	}
+	weavit_imgopt_clear_cache();
 	wp_safe_redirect( add_query_arg( array( 'page' => 'weavit-image-optimizer', 'cleared' => 1 ), admin_url( 'admin.php' ) ) );
 	exit;
 } );
