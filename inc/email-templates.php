@@ -20,6 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'WEAVIT_EMAIL_TEMPLATES_OPTION', 'weavit_email_templates' );
 define( 'WEAVIT_EMAIL_LAYOUT_OPTION', 'weavit_email_layout' );
+define( 'WEAVIT_EMAIL_NOTIFY_OPTION', 'weavit_email_notify_to' );
 
 /* ---------------------------------------------------------------------
  * 1. The templates and their defaults
@@ -262,8 +263,34 @@ function weavit_email_form_person( $form_id, $data ) {
 	return array( $name, $email );
 }
 
+/** The "always tell these people" list (Weavit > Email Templates), as an array of valid addresses. */
+function weavit_email_notify_list() {
+	$raw = (string) get_option( WEAVIT_EMAIL_NOTIFY_OPTION, '' );
+	$out = array();
+	foreach ( preg_split( '/[\s,;]+/', $raw ) as $address ) {
+		$address = sanitize_email( $address );
+		if ( is_email( $address ) ) {
+			$out[ strtolower( $address ) ] = $address;
+		}
+	}
+	return array_values( $out );
+}
+
+/** Everyone who should hear about a submission: the form's own address plus the always-notify list. */
+function weavit_email_notify_recipients( $form_to ) {
+	$all = array();
+	foreach ( array_merge( (array) $form_to, weavit_email_notify_list() ) as $address ) {
+		$address = sanitize_email( $address );
+		if ( is_email( $address ) ) {
+			$all[ strtolower( $address ) ] = $address;
+		}
+	}
+	return array_values( $all );
+}
+
 /** Form submission -> notice to you. Called from the forms handler. */
 function weavit_email_form_notify( $to, $form, $data ) {
+	$to = weavit_email_notify_recipients( $to );
 	list( $name, $email ) = weavit_email_form_person( $form->ID, $data );
 	$headers = $email ? array( 'Reply-To: ' . ( $name ? str_replace( array( '"', "\r", "\n" ), '', $name ) . ' <' . $email . '>' : $email ) ) : array();
 	return weavit_email_send( 'enquiry_notify', $to, array(
@@ -381,6 +408,23 @@ add_action( 'admin_post_weavit_email_test', function () {
 	exit;
 } );
 
+add_action( 'admin_post_weavit_email_notify_save', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	check_admin_referer( 'weavit_email_notify_save' );
+	$clean = array();
+	foreach ( preg_split( '/[\s,;]+/', (string) wp_unslash( $_POST['notify_to'] ?? '' ) ) as $address ) {
+		$address = sanitize_email( $address );
+		if ( is_email( $address ) ) {
+			$clean[ strtolower( $address ) ] = $address;
+		}
+	}
+	update_option( WEAVIT_EMAIL_NOTIFY_OPTION, implode( "\n", $clean ) );
+	wp_safe_redirect( weavit_email_back( array( 'notified' => count( $clean ) ) ) );
+	exit;
+} );
+
 add_action( 'admin_post_weavit_email_layout_save', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( 'Not allowed.' );
@@ -416,6 +460,8 @@ function weavit_email_render_page() {
 			<div class="notice notice-success is-dismissible"><p>Template saved.</p></div>
 		<?php elseif ( isset( $_GET['reset'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Template reset to the default wording.</p></div>
+		<?php elseif ( isset( $_GET['notified'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<div class="notice notice-success is-dismissible"><p>Saved — <?php echo (int) $_GET['notified']; // phpcs:ignore WordPress.Security.NonceVerification ?> address(es) will be told about every form submission.</p></div>
 		<?php elseif ( isset( $_GET['layout'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 			<div class="notice notice-success is-dismissible"><p>Layout saved — it applies to every email.</p></div>
 		<?php elseif ( isset( $_GET['test'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
@@ -430,6 +476,30 @@ function weavit_email_render_page() {
 		<?php endif; ?>
 
 		<p style="max-width:780px;">These are all the emails the site sends by itself. Change the wording any time, switch an email off, or send yourself a test. Emails go out through <a href="<?php echo esc_url( admin_url( 'admin.php?page=bootg-smtp-settings' ) ); ?>">Weavit &rarr; SMTP</a>.</p>
+
+		<div class="postbox" style="max-width:1360px;margin:12px 0;padding:16px 18px;">
+			<h2 style="margin:0 0 6px;padding:0;font-size:15px;">Who is told when a form is filled in</h2>
+			<p class="description" style="margin:0 0 10px;">Every form on the site (contact, 7 Steps, newsletter, and any you add) emails the addresses below, plus the address set on the form itself. One per line.</p>
+			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
+				<?php wp_nonce_field( 'weavit_email_notify_save' ); ?>
+				<input type="hidden" name="action" value="weavit_email_notify_save">
+				<textarea name="notify_to" rows="3" class="regular-text" style="min-width:320px;" placeholder="name@example.com"><?php echo esc_textarea( implode( "\n", weavit_email_notify_list() ) ); ?></textarea>
+				<div>
+					<?php submit_button( 'Save', 'primary', 'submit', false ); ?>
+					<p class="description" style="margin:8px 0 0;">The form's own address: <?php echo esc_html( bootg_get_option( 'email' ) ?: get_option( 'admin_email' ) ); ?> (Site Options) unless a form sets its own.</p>
+				</div>
+			</form>
+			<?php
+			$rows = array();
+			foreach ( get_posts( array( 'post_type' => 'bootg_form', 'posts_per_page' => -1, 'post_status' => 'any', 'orderby' => 'title', 'order' => 'ASC' ) ) as $form ) {
+				$fs     = bootg_get_form_settings( $form->ID );
+				$rows[] = '<li>' . esc_html( $form->post_title ) . ': ' . ( $fs['notify_enabled'] ? '<strong style="color:#00a32a;">notifies</strong>' : '<strong style="color:#b32d2e;">notifications are switched off</strong> — turn on "email me" in <a href="' . esc_url( admin_url( 'admin.php?page=bootg-form-builder&form_id=' . $form->ID ) ) . '">the form\'s settings</a>' ) . '</li>';
+			}
+			if ( $rows ) {
+				echo '<ul style="margin:12px 0 0 18px;list-style:disc;">' . implode( '', $rows ) . '</ul>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			}
+			?>
+		</div>
 
 		<?php foreach ( weavit_email_registry() as $id => $def ) : ?>
 			<?php
