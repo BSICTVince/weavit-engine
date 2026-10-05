@@ -141,11 +141,15 @@ function weavit_email_token_map( $vars, $html, $brand = '#643486' ) {
 		$rows[] = $r;
 	}
 	if ( $html ) {
+		// Label above value, one field per row: stays tidy with long labels and on phones.
 		$cells = '';
 		foreach ( $rows as $r ) {
-			$cells .= '<tr><td style="padding:6px 14px 6px 0;color:#6e6478;vertical-align:top;white-space:nowrap;">' . esc_html( $r['label'] ) . '</td><td style="padding:6px 0;color:#1d1a20;">' . str_replace( array( "\r\n", "\n", "\r" ), '<br>', esc_html( $r['value'] ) ) . '</td></tr>';
+			$cells .= '<tr><td style="padding:12px 0;border-bottom:1px solid #eae1f1;">'
+				. '<div style="margin:0 0 3px;font-size:13px;line-height:1.4;color:#6e6478;">' . esc_html( $r['label'] ) . '</div>'
+				. '<div style="font-size:16px;line-height:1.5;color:#1d1a20;word-break:break-word;">' . str_replace( array( "\r\n", "\n", "\r" ), '<br>', esc_html( $r['value'] ) ) . '</div>'
+				. '</td></tr>';
 		}
-		$fields = $cells ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 16px;font-size:15px;">' . $cells . '</table>' : '';
+		$fields = $cells ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 14px;border-top:1px solid #eae1f1;"><tbody>' . $cells . '</tbody></table>' : '';
 	} else {
 		$fields = '';
 		foreach ( $rows as $r ) {
