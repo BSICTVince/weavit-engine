@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'WEAVIT_SEO_OPTION', 'weavit_seo_settings' );
 
 function weavit_seo_defaults() {
-	return array(
+	$defaults = array(
 		// Titles & Social.
 		'separator'           => '|',
 		'append_site_name'    => 1,
@@ -32,21 +32,22 @@ function weavit_seo_defaults() {
 		'twitter_handle'      => '',
 		// Schema.
 		'schema_enabled'      => 1,
-		'schema_type'         => 'AccountingService',
+		'schema_type'         => 'LocalBusiness',
 		'legal_name'          => '',
 		'street'              => '',
-		'locality'            => 'Perth',
-		'region'              => 'WA',
+		'locality'            => '',
+		'region'              => '',
 		'postcode'            => '',
-		'country'             => 'AU',
+		'country'             => '',
 		'hours'               => '',
-		'area_served'         => "Perth, Western Australia\nAustralia",
+		'area_served'         => '',
 		'price_range'         => '',
 		// Sitemap & robots.
 		'sitemap_types'       => array( 'page', 'post', 'service', 'integration', 'guide', 'team_member' ),
 		'sitemap_users'       => 0,
 		'robots_extra'        => '',
 	);
+	return (array) apply_filters( 'weavit_seo_defaults', $defaults ); // A theme/starter can pre-fill the business details.
 }
 
 function weavit_seo_settings() {
@@ -240,7 +241,7 @@ add_action( 'wp_head', function () {
 
 	$is_article = $is_post && 'post' === get_post_type( $id );
 	$tags       = array(
-		array( 'property', 'og:locale', 'en_AU' ),
+		array( 'property', 'og:locale', get_locale() ),
 		array( 'property', 'og:type', $is_article ? 'article' : 'website' ),
 		array( 'property', 'og:title', $title ),
 		array( 'property', 'og:url', $url ),
@@ -387,7 +388,7 @@ function weavit_seo_render_titles_tab() {
 				<p class="description">Controls the preview shown when someone shares a page: its title, summary and picture.</p></td></tr>
 			<tr><th><label for="default_image">Default share picture</label></th><td><input type="url" id="default_image" name="default_image" class="large-text" value="<?php echo esc_attr( $s['default_image'] ); ?>" placeholder="https://…/uploads/share-picture.jpg">
 				<p class="description">Used when a page has no featured image. Paste a Media Library address; 1200 × 630 px works best. Leave blank to fall back to your logo.</p></td></tr>
-			<tr><th><label for="twitter_handle">X (Twitter) handle</label></th><td>@<input type="text" id="twitter_handle" name="twitter_handle" class="regular-text" value="<?php echo esc_attr( $s['twitter_handle'] ); ?>" placeholder="go_bookkeeping"></td></tr>
+			<tr><th><label for="twitter_handle">X (Twitter) handle</label></th><td>@<input type="text" id="twitter_handle" name="twitter_handle" class="regular-text" value="<?php echo esc_attr( $s['twitter_handle'] ); ?>" placeholder="yourhandle"></td></tr>
 		</table>
 		<?php submit_button( 'Save social settings', 'primary', 'submit', false ); ?>
 	</form>

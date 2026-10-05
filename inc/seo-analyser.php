@@ -27,6 +27,13 @@ function weavit_seo_fetch( $url ) {
 	return array( (int) wp_remote_retrieve_response_code( $r ), (string) wp_remote_retrieve_body( $r ) );
 }
 
+/** Where to send someone to fix the homepage title/description: the static front page's editor, else the Titles & Social tab. A theme can point this at its own screen. */
+function weavit_seo_homepage_fix_url() {
+	$front = (int) get_option( 'page_on_front' );
+	$url   = $front ? get_edit_post_link( $front, 'raw' ) : admin_url( 'admin.php?page=bootg-seo&tab=titles' );
+	return (string) apply_filters( 'weavit_seo_homepage_fix_url', $url );
+}
+
 function weavit_seo_check( $id, $label, $status, $detail, $fix = '' ) {
 	return array( 'id' => $id, 'label' => $label, 'status' => $status, 'detail' => $detail, 'fix' => $fix );
 }
@@ -123,8 +130,8 @@ function weavit_seo_audit_site() {
 	list( $code, $html ) = weavit_seo_fetch( $home );
 	if ( 200 === $code ) {
 		$p        = weavit_seo_parse_page( $html );
-		$checks[] = weavit_seo_check( 'home_title', 'Homepage has a title', '' !== $p['title'] ? 'pass' : 'fail', '' !== $p['title'] ? '"' . $p['title'] . '" (' . mb_strlen( $p['title'] ) . ' characters)' : 'The homepage has no <title>.', admin_url( 'themes.php?page=bootg-homepage-sections' ) );
-		$checks[] = weavit_seo_check( 'home_desc', 'Homepage has a meta description', '' !== $p['description'] ? 'pass' : 'fail', '' !== $p['description'] ? mb_strlen( $p['description'] ) . ' characters.' : 'No description — it is the text shown under your title in Google. Set it under Appearance → Homepage Content.', admin_url( 'themes.php?page=bootg-homepage-sections' ) );
+		$checks[] = weavit_seo_check( 'home_title', 'Homepage has a title', '' !== $p['title'] ? 'pass' : 'fail', '' !== $p['title'] ? '"' . $p['title'] . '" (' . mb_strlen( $p['title'] ) . ' characters)' : 'The homepage has no <title>.', weavit_seo_homepage_fix_url() );
+		$checks[] = weavit_seo_check( 'home_desc', 'Homepage has a meta description', '' !== $p['description'] ? 'pass' : 'fail', '' !== $p['description'] ? mb_strlen( $p['description'] ) . ' characters.' : 'No description — it is the text shown under your title in Google. Add one in the homepage\'s SEO settings.', weavit_seo_homepage_fix_url() );
 		$checks[] = weavit_seo_check( 'home_schema', 'Homepage sends business schema to Google', $p['schema'] ? 'pass' : 'warn', $p['schema'] ? 'Found structured data on the homepage.' : 'No structured data found. Turn on the SEO Suite and Schema (Weavit → SEO → Schema).', admin_url( 'admin.php?page=bootg-seo&tab=schema' ) );
 		$checks[] = weavit_seo_check( 'home_social', 'Homepage has social share tags', $p['og'] ? 'pass' : 'warn', $p['og'] ? 'Open Graph tags found.' : 'No share card tags. Turn on the SEO Suite (Weavit → SEO → Titles & Social).', admin_url( 'admin.php?page=bootg-seo&tab=titles' ) );
 	} else {

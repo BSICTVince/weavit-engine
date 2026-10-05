@@ -247,7 +247,7 @@ function weavit_newsletter_render_page() {
 			<?php wp_nonce_field( 'weavit_newsletter_save' ); ?>
 			<input type="hidden" name="action" value="weavit_newsletter_save">
 			<table class="form-table" role="presentation">
-				<tr><th>Email confirmation</th><td><label><input type="checkbox" name="require_confirmation" value="1" <?php checked( $s['require_confirmation'] ); ?>> Require new subscribers to confirm by email</label><p class="description">Untick to add people to the list immediately (not recommended — a confirmed list keeps your emails out of spam and meets Australian Spam Act consent rules).</p></td></tr>
+				<tr><th>Email confirmation</th><td><label><input type="checkbox" name="require_confirmation" value="1" <?php checked( $s['require_confirmation'] ); ?>> Require new subscribers to confirm by email</label><p class="description">Untick to add people to the list immediately (not recommended — a confirmed list keeps your emails out of spam and helps you meet email-consent laws such as the Spam Act, GDPR and CAN-SPAM).</p></td></tr>
 				<tr><th><label for="after_signup">Message after Subscribe</label></th><td><input type="text" id="after_signup" name="after_signup" class="large-text" value="<?php echo esc_attr( $s['after_signup'] ); ?>"></td></tr>
 			</table>
 			<?php submit_button( 'Save Settings' ); ?>

@@ -27,7 +27,7 @@ function bootg_meta_fields( $post_type ) {
 			return array(
 				'subtitle'            => array( 'Hero subtitle', 'text' ),
 				'intro'               => array( 'Hero intro paragraph', 'textarea' ),
-				'partner_badge_label' => array( 'Partner badge label (e.g. "Xero Gold Partner")', 'text' ),
+				'partner_badge_label' => array( 'Partner badge label (e.g. "Certified Partner")', 'text' ),
 				'login_url'           => array( 'Client login URL (optional)', 'url' ),
 				'features'            => array( 'Feature checklist (one per line)', 'textarea' ),
 			);

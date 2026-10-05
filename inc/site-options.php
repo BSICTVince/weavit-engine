@@ -13,28 +13,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'BOOTG_OPTION', 'bootg_theme_options' );
 
 /**
- * Defaults double as this build's actual values until the Site Options
- * form is explicitly saved (at which point wp_options takes over). A
- * future starter-content JSON pass should seed these via the importer
- * instead of hardcoding them here — tracked as follow-up work, not done
- * as part of this plugin/theme split so as not to risk blanking live
- * values that were never explicitly re-saved.
+ * What each option holds until the Site Options form is saved (after that,
+ * the saved value wins). Deliberately generic — only the site's own name,
+ * tagline and admin email are guessed. A theme or starter site that wants
+ * real starting values (phone, social links...) supplies them through the
+ * `bootg_default_options` filter.
  */
 function bootg_default_options() {
-	return array(
-		'phone'              => '08 6249 0115',
-		'phone_link'         => '0862490115',
-		'email'              => 'info@bookkeepingonthego.net.au',
+	$defaults = array(
+		'phone'              => '',
+		'phone_link'         => '',
+		'email'              => get_option( 'admin_email' ),
 		'address'            => '',
-		'facebook_url'       => 'https://www.facebook.com/bookkeeperperthwa/',
-		'twitter_url'        => 'https://x.com/go_bookkeeping',
-		'instagram_url'      => 'https://www.instagram.com/bookkeeping_on_the_go_perth',
-		'linkedin_url'       => 'https://www.linkedin.com/in/natalie-adams-0159b582',
-		'footer_tagline'     => 'Professional, experienced bookkeeping, payroll, and BAS services based in Perth and operating virtually across Australia.',
-		'footer_copyright'   => '&copy; ' . gmdate( 'Y' ) . ' Bookkeeping On The Go. All rights reserved.',
+		'facebook_url'       => '',
+		'twitter_url'        => '',
+		'instagram_url'      => '',
+		'linkedin_url'       => '',
+		'footer_tagline'     => get_bloginfo( 'description' ),
+		'footer_copyright'   => '&copy; ' . gmdate( 'Y' ) . ' ' . esc_html( get_bloginfo( 'name' ) ) . '. All rights reserved.',
 		'privacy_url'        => '',
 		'terms_url'          => '',
 	);
+	return (array) apply_filters( 'bootg_default_options', $defaults );
 }
 
 function bootg_get_option( $key ) {
@@ -184,8 +184,8 @@ function bootg_render_general_options_tab() {
 	/**
 	 * A theme (or its starter-content tooling) can add its own admin
 	 * notices / one-click content sections here without touching this
-	 * file — e.g. the Bookkeeping On The Go theme's "Content Tools"
-	 * page links back to this screen instead of duplicating it.
+	 * file — e.g. a theme's own "Content Tools" page can link back to
+	 * this screen instead of duplicating it.
 	 */
 	do_action( 'weavit_site_options_page' );
 	?>

@@ -47,7 +47,7 @@ function weavit_email_registry() {
 			'defaults'    => array(
 				'enabled' => 0,
 				'subject' => 'Welcome to {site_name}',
-				'body'    => "Hello,\n\nThank you for confirming your subscription — you're now on the {site_name} list.\n\nWe'll send you helpful bookkeeping, BAS and payroll updates, and let you know when we publish something new.\n\nThank you,\n\n{site_name}\n\nYou can unsubscribe at any time:\n\n{unsubscribe_link}",
+				'body'    => "Hello,\n\nThank you for confirming your subscription — you're now on the {site_name} list.\n\nWe'll send you our latest news and updates, and let you know when we publish something new.\n\nThank you,\n\n{site_name}\n\nYou can unsubscribe at any time:\n\n{unsubscribe_link}",
 			),
 		),
 		'newsletter_post'    => array(
@@ -343,7 +343,7 @@ function weavit_email_sample_vars() {
 		'fields'          => array(
 			array( 'label' => 'Name', 'value' => 'Alex Sample' ),
 			array( 'label' => 'Email', 'value' => 'alex@example.com' ),
-			array( 'label' => 'Message', 'value' => "Hi, I'd like some help with my BAS." ),
+			array( 'label' => 'Message', 'value' => "Hi, I'd like to find out more about your services." ),
 		),
 		'confirm_url'     => add_query_arg( array( 'weavit_subscription' => 'confirm', 'token' => 'preview' ), home_url( '/' ) ),
 		'post_title'      => 'Sample blog post title',

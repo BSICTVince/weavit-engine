@@ -216,9 +216,9 @@ add_action( 'admin_post_bootg_save_modules', function () {
  * filter (id, title, description, preview_url, ordered list of step
  * keys/labels) and handles each step via the `weavit_starter_site_run_step`
  * filter, returning `array( 'message' => '...' )` or a WP_Error. This file
- * only owns the generic UI + AJAX runner; the actual import logic for
- * Bookkeeping On The Go lives in the theme (inc/starter-site-import.php),
- * same separation as Content Tools.
+ * only owns the generic UI + AJAX runner; the actual import logic for a
+ * starter site lives in that starter's own theme, same separation as
+ * Content Tools.
  *
  * A theme can only register its own steps once IT is the active theme (its
  * functions.php has to have loaded for the filter to even be hooked) — so

@@ -3,7 +3,7 @@
  * Schema markup (JSON-LD) — tells Google who the business is and what each
  * page is, which is what powers rich results for a local business:
  *
- *   every page   the business (AccountingService by default), the website, the page
+ *   every page   the business (type chosen in settings), the website, the page
  *   pages        breadcrumb trail
  *   blog posts   BlogPosting
  *   services     Service
@@ -17,14 +17,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Australian-style phone number as an international one for schema, e.g. "+61 8 6249 0115". */
+/** The page language as a BCP 47 tag ("en-AU"), taken from the site's language setting. */
+function weavit_schema_language() {
+	return str_replace( '_', '-', get_locale() );
+}
+
+/**
+ * The phone number for schema. Australian numbers (when the business country
+ * is AU) are converted to international form, e.g. "+61 8 6249 0115"; anything
+ * else is passed through as typed. Filter `weavit_schema_phone` to adjust.
+ */
 function weavit_schema_phone() {
 	$raw    = bootg_get_option( 'phone_link' ) ?: bootg_get_option( 'phone' );
 	$digits = preg_replace( '/\D/', '', (string) $raw );
-	if ( 10 === strlen( $digits ) && '0' === $digits[0] ) {
-		return '+61 ' . substr( $digits, 1, 1 ) . ' ' . substr( $digits, 2, 4 ) . ' ' . substr( $digits, 6 );
+	$phone  = (string) bootg_get_option( 'phone' );
+	if ( 'AU' === strtoupper( (string) weavit_seo_settings()['country'] ) && 10 === strlen( $digits ) && '0' === $digits[0] ) {
+		$phone = '+61 ' . substr( $digits, 1, 1 ) . ' ' . substr( $digits, 2, 4 ) . ' ' . substr( $digits, 6 );
 	}
-	return (string) bootg_get_option( 'phone' );
+	return (string) apply_filters( 'weavit_schema_phone', $phone );
 }
 
 function weavit_schema_lines( $text ) {
@@ -135,7 +145,7 @@ function weavit_schema_graph( $post_id = 0 ) {
 			'url'             => home_url( '/' ),
 			'name'            => get_bloginfo( 'name' ),
 			'publisher'       => array( '@id' => $org_id ),
-			'inLanguage'      => 'en-AU',
+			'inLanguage'      => weavit_schema_language(),
 			'potentialAction' => array(
 				'@type'       => 'SearchAction',
 				'target'      => array( '@type' => 'EntryPoint', 'urlTemplate' => home_url( '/?s={search_term_string}' ) ),
@@ -152,7 +162,7 @@ function weavit_schema_graph( $post_id = 0 ) {
 			'name'       => get_bloginfo( 'name' ),
 			'isPartOf'   => array( '@id' => $site_id ),
 			'about'      => array( '@id' => $org_id ),
-			'inLanguage' => 'en-AU',
+			'inLanguage' => weavit_schema_language(),
 		);
 		return $graph;
 	}
@@ -174,7 +184,7 @@ function weavit_schema_graph( $post_id = 0 ) {
 		'isPartOf'      => array( '@id' => $site_id ),
 		'datePublished' => get_the_date( 'c', $post ),
 		'dateModified'  => get_the_modified_date( 'c', $post ),
-		'inLanguage'    => 'en-AU',
+		'inLanguage'    => weavit_schema_language(),
 		'breadcrumb'    => array( '@id' => $crumb_id ),
 	);
 	$description = function_exists( 'weavit_seo_description' ) ? weavit_seo_description( $post->ID ) : '';
@@ -204,7 +214,7 @@ function weavit_schema_graph( $post_id = 0 ) {
 			'isPartOf'         => array( '@id' => $page_id ),
 			'author'           => $byline ? array( '@type' => 'Person', 'name' => $byline ) : array( '@id' => $org_id ),
 			'publisher'        => array( '@id' => $org_id ),
-			'inLanguage'       => 'en-AU',
+			'inLanguage'       => weavit_schema_language(),
 		);
 		if ( $description ) {
 			$article['description'] = $description;
@@ -262,7 +272,7 @@ function weavit_seo_render_schema_tab() {
 	weavit_seo_status_notice();
 	weavit_seo_saved_notice();
 	$types = array(
-		'AccountingService'   => 'Accounting service (best fit for a bookkeeping business)',
+		'AccountingService'   => 'Accounting service',
 		'ProfessionalService' => 'Professional service',
 		'LocalBusiness'       => 'Local business',
 		'Organization'        => 'Organisation (no address or opening hours)',

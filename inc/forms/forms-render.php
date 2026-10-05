@@ -6,7 +6,7 @@
  * with zero theme involvement. A theme that wants its own field markup
  * (grid layout, its own CSS framework, etc.) hooks `weavit_render_form_fields`
  * and its output replaces the fallback entirely — see
- * inc/forms/forms-render.php in the Bookkeeping On The Go theme.
+ * a theme's own forms-render.php for an example.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

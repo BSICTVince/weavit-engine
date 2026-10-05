@@ -4,7 +4,7 @@
  * a theme's own content/ directory — this engine ships none of its own)
  * and creates the matching WordPress objects. Every function here is
  * idempotent — safe to run more than once — and theme-agnostic: nothing
- * in this file references Bookkeeping On The Go by name.
+ * in this file references any particular site or theme by name.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

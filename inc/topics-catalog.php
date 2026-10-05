@@ -106,7 +106,7 @@ function bootg_render_topics_settings_page() {
 			<table class="form-table">
 				<tr>
 					<th><label for="owner">Repo owner</label></th>
-					<td><input type="text" id="owner" name="<?php echo esc_attr( BOOTG_TOPICS_GITHUB_OPTION ); ?>[owner]" value="<?php echo esc_attr( $s['owner'] ); ?>" class="regular-text" placeholder="e.g. BSICTVince"></td>
+					<td><input type="text" id="owner" name="<?php echo esc_attr( BOOTG_TOPICS_GITHUB_OPTION ); ?>[owner]" value="<?php echo esc_attr( $s['owner'] ); ?>" class="regular-text" placeholder="e.g. your-github-username"></td>
 				</tr>
 				<tr>
 					<th><label for="repo">Repo name</label></th>

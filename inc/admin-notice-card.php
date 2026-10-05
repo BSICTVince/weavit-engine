@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * @param string $type     'plugin' or 'theme'.
  * @param string $slug     Plugin file relative to plugins dir ("weavit-engine/weavit-engine.php")
- *                          or theme stylesheet slug ("bookkeeping-on-the-go").
+ *                          or theme stylesheet slug ("my-theme").
  * @param string $label    Display name, e.g. "Weavit Engine".
  * @param string $icon_url Small square icon for the card.
  */

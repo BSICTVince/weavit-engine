@@ -195,20 +195,9 @@ function weavit_bk_render_page() {
 	if ( ! current_user_can( 'edit_posts' ) ) {
 		return;
 	}
+	// A theme lists its own bookkeeping pages here: array( 'Heading' => array( page-slug => 'Label' ) ).
 	$groups = (array) apply_filters( 'weavit_bookkeeping_pages', array(
-		'Compliance &amp; resources' => array(
-			'calculators'       => 'Calculators',
-			'ato-compliance'    => 'ATO Compliance',
-			'dates-to-remember' => 'Dates to Remember',
-			'key-dates'         => 'Key Dates',
-			'7-steps'           => '7 Steps to Increasing Profit',
-			'resources'         => 'Templates &amp; Checklists',
-		),
-		'Specialist pages'           => array(
-			'payroll-specialists-perth'       => 'Payroll Specialists in Perth',
-			'public-trustee-reporting'        => 'Public Trustee Reporting',
-			'nonprofit-compliance-accounting' => 'Nonprofit Compliance Accounting',
-		),
+		'Calculators' => array( 'calculators' => 'Calculators' ),
 	) );
 	?>
 	<div class="wrap">
