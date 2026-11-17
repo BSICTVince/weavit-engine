@@ -25,6 +25,7 @@ function bootg_default_options() {
 		'phone_link'         => '',
 		'email'              => get_option( 'admin_email' ),
 		'address'            => '',
+		'map_query'          => '', // What the Contact-page map shows: an address, a business name, or "lat,lng". Blank hides the map.
 		'facebook_url'       => '',
 		'twitter_url'        => '',
 		'instagram_url'      => '',
@@ -106,6 +107,7 @@ function bootg_sanitize_options( $input ) {
 	$output['phone_link']        = preg_replace( '/[^0-9+]/', '', $input['phone_link'] ?? '' );
 	$output['email']             = sanitize_email( $input['email'] ?? '' );
 	$output['address']           = sanitize_text_field( $input['address'] ?? '' );
+	$output['map_query']         = sanitize_text_field( $input['map_query'] ?? '' );
 	$output['facebook_url']      = esc_url_raw( $input['facebook_url'] ?? '' );
 	$output['twitter_url']       = esc_url_raw( $input['twitter_url'] ?? '' );
 	$output['instagram_url']     = esc_url_raw( $input['instagram_url'] ?? '' );
@@ -208,6 +210,11 @@ function bootg_render_general_options_tab() {
 			<tr>
 				<th><label for="address">Address</label></th>
 				<td><input type="text" id="address" name="<?php echo esc_attr( BOOTG_OPTION ); ?>[address]" value="<?php echo esc_attr( $o['address'] ); ?>" class="regular-text"></td>
+			</tr>
+			<tr>
+				<th><label for="map_query">Contact page map</label></th>
+				<td><input type="text" id="map_query" name="<?php echo esc_attr( BOOTG_OPTION ); ?>[map_query]" value="<?php echo esc_attr( $o['map_query'] ); ?>" class="regular-text" placeholder="e.g. -32.0734,116.0005">
+				<p class="description">Where the map on the Contact page points: an address, a business name, or <code>latitude,longitude</code>. Leave blank to hide the map.</p></td>
 			</tr>
 			<tr><th colspan="2"><h2>Social Links</h2></th></tr>
 			<tr>
