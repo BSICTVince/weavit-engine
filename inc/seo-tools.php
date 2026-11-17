@@ -16,6 +16,7 @@ function bootg_seo_tabs() {
 		'schema'    => array( 'label' => 'Schema', 'render' => 'weavit_seo_render_schema_tab' ),
 		'llms'      => array( 'label' => 'AI / llms.txt', 'render' => 'weavit_seo_render_llms_tab' ),
 		'sitemap'   => array( 'label' => 'Sitemap & Robots', 'render' => 'weavit_seo_render_sitemap_tab' ),
+		'indexnow'  => array( 'label' => 'IndexNow', 'render' => 'weavit_seo_render_indexnow_tab' ),
 		'notfound'  => array( 'label' => '404 Monitor', 'render' => 'weavit_seo_render_notfound_tab' ),
 		'redirects' => array( 'label' => 'Redirects', 'render' => 'bootg_render_redirects_tab' ),
 		'htaccess'  => array( 'label' => '.htaccess', 'render' => 'bootg_render_htaccess_tab' ),

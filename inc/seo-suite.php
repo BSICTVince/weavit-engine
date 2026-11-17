@@ -51,6 +51,7 @@ function weavit_seo_defaults() {
 		'sitemap_types'       => array( 'page', 'post', 'service', 'integration', 'guide', 'team_member' ),
 		'sitemap_users'       => 0,
 		'robots_extra'        => '',
+		'indexnow_enabled'    => 0,  // Opt-in; see inc/seo-indexnow.php.
 	);
 	return (array) apply_filters( 'weavit_seo_defaults', $defaults ); // A theme/starter can pre-fill the business details.
 }
@@ -148,10 +149,13 @@ add_action( 'admin_post_weavit_seo_save', function () {
 			$s['sitemap_users'] = $flag( 'sitemap_users' );
 			$s['robots_extra']  = sanitize_textarea_field( wp_unslash( $_POST['robots_extra'] ?? '' ) );
 			break;
+		case 'indexnow':
+			$s['indexnow_enabled'] = $flag( 'indexnow_enabled' );
+			break;
 	}
 	update_option( WEAVIT_SEO_OPTION, $s );
 
-	$tab = in_array( $section, array( 'sitemap', 'schema', 'llms' ), true ) ? $section : 'titles';
+	$tab = in_array( $section, array( 'sitemap', 'schema', 'llms', 'indexnow' ), true ) ? $section : 'titles';
 	wp_safe_redirect( add_query_arg( array( 'page' => 'bootg-seo', 'tab' => $tab, 'saved' => $section ), admin_url( 'admin.php' ) ) );
 	exit;
 } );
