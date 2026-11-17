@@ -3,7 +3,7 @@
  * Plugin Name: Weavit Engine
  * Plugin URI: https://vinceorodazo.com
  * Description: Core reusable engine — custom post types, meta boxes, SEO fields, native SMTP, Site Options, and a custom Forms engine (builder, entries, notifications) — that Weavit-built themes are built on top of. No page builder, no ACF.
- * Version: 0.1.53
+ * Version: 0.1.54
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Weavit | Vince O. Dazo
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WEAVIT_ENGINE_VERSION', '0.1.53' );
+define( 'WEAVIT_ENGINE_VERSION', '0.1.54' );
 define( 'WEAVIT_ENGINE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WEAVIT_ENGINE_URI', plugin_dir_url( __FILE__ ) );
 
@@ -72,4 +72,18 @@ add_action( 'admin_notices', function () {
 		return;
 	}
 	echo '<div class="notice notice-warning"><p>Weavit Engine is active, but the current theme doesn\'t declare <code>add_theme_support( \'weavit-engine\' )</code>. The engine still works standalone, but form field markup will use its plain fallback styling instead of the theme\'s own.</p></div>';
+} );
+
+/**
+ * Remember that this plugin is meant to be on. An interrupted update can leave a plugin
+ * silently deactivated; the theme reads this flag to put it back (see its functions.php).
+ * A deliberate deactivation from wp-admin clears the flag, so that choice is respected.
+ */
+add_action( 'plugins_loaded', function () {
+	if ( '1' !== get_option( 'weavit_engine_keep_active' ) ) {
+		update_option( 'weavit_engine_keep_active', '1', false );
+	}
+} );
+register_deactivation_hook( __FILE__, function () {
+	update_option( 'weavit_engine_keep_active', '0', false );
 } );
