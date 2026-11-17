@@ -42,6 +42,8 @@ function weavit_seo_defaults() {
 		'hours'               => '',
 		'area_served'         => '',
 		'price_range'         => '',
+		'gbp_url'             => '', // Google Business Profile link (printed as sameAs).
+		'map_url'             => '', // Google Maps link (printed as hasMap).
 		// Sitemap & robots.
 		'sitemap_types'       => array( 'page', 'post', 'service', 'integration', 'guide', 'team_member' ),
 		'sitemap_users'       => 0,
@@ -127,6 +129,9 @@ add_action( 'admin_post_weavit_seo_save', function () {
 			}
 			$s['hours']       = sanitize_textarea_field( wp_unslash( $_POST['hours'] ?? '' ) );
 			$s['area_served'] = sanitize_textarea_field( wp_unslash( $_POST['area_served'] ?? '' ) );
+			foreach ( array( 'gbp_url', 'map_url' ) as $key ) {
+				$s[ $key ] = esc_url_raw( wp_unslash( $_POST[ $key ] ?? '' ) );
+			}
 			break;
 		case 'sitemap':
 			$public             = array_keys( get_post_types( array( 'public' => true ) ) );

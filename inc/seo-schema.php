@@ -100,8 +100,15 @@ function weavit_schema_org_node() {
 			$same[] = $url;
 		}
 	}
+	// Google Business Profile: links the site to the Maps listing so Google can connect them.
+	if ( ! empty( $s['gbp_url'] ) && preg_match( '#^https?://#i', $s['gbp_url'] ) ) {
+		$same[] = $s['gbp_url'];
+	}
 	if ( $same ) {
-		$node['sameAs'] = $same;
+		$node['sameAs'] = array_values( array_unique( $same ) );
+	}
+	if ( $local && ! empty( $s['map_url'] ) && preg_match( '#^https?://#i', $s['map_url'] ) ) {
+		$node['hasMap'] = $s['map_url'];
 	}
 	return $node;
 }
@@ -296,6 +303,8 @@ function weavit_seo_render_schema_tab() {
 			<tr><th><label for="area_served">Areas you serve</label></th><td><textarea id="area_served" name="area_served" rows="3" class="regular-text"><?php echo esc_textarea( $s['area_served'] ); ?></textarea><p class="description">One per line.</p></td></tr>
 			<tr><th><label for="hours">Opening hours</label></th><td><textarea id="hours" name="hours" rows="3" class="regular-text" placeholder="Mo-Fr 09:00-17:00"><?php echo esc_textarea( $s['hours'] ); ?></textarea><p class="description">One per line in this format: <code>Mo-Fr 09:00-17:00</code> (days Mo Tu We Th Fr Sa Su, 24-hour times). Leave blank if you don't want to list hours.</p></td></tr>
 			<tr><th><label for="price_range">Price range</label></th><td><input type="text" id="price_range" name="price_range" class="small-text" value="<?php echo esc_attr( $s['price_range'] ); ?>" placeholder="$$"> <span class="description">Optional, e.g. $$.</span></td></tr>
+			<tr><th><label for="gbp_url">Google Business Profile link</label></th><td><input type="url" id="gbp_url" name="gbp_url" class="regular-text" value="<?php echo esc_attr( $s['gbp_url'] ); ?>" placeholder="https://g.page/..."> <span class="description">Your Google profile's share link. Helps Google connect this site to your listing.</span></td></tr>
+			<tr><th><label for="map_url">Google Maps link</label></th><td><input type="url" id="map_url" name="map_url" class="regular-text" value="<?php echo esc_attr( $s['map_url'] ); ?>" placeholder="https://maps.app.goo.gl/..."> <span class="description">Optional. Printed as the map for your business.</span></td></tr>
 		</table>
 		<?php submit_button( 'Save schema settings', 'primary', 'submit', false ); ?>
 	</form>
