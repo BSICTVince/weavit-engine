@@ -42,6 +42,9 @@ function weavit_seo_defaults() {
 		'hours'               => '',
 		'area_served'         => '',
 		'price_range'         => '',
+		'llms_enabled'        => 1,  // Serve /llms.txt (see inc/seo-llms.php).
+		'llms_summary'        => '', // Optional intro paragraph for /llms.txt.
+		'llms_types'          => array(), // Per content type: on / heading / limit (see weavit_llms_types()).
 		'gbp_url'             => '', // Google Business Profile link (printed as sameAs).
 		'map_url'             => '', // Google Maps link (printed as hasMap).
 		// Sitemap & robots.
@@ -133,6 +136,11 @@ add_action( 'admin_post_weavit_seo_save', function () {
 				$s[ $key ] = esc_url_raw( wp_unslash( $_POST[ $key ] ?? '' ) );
 			}
 			break;
+		case 'llms':
+			$s['llms_enabled'] = $flag( 'llms_enabled' );
+			$s['llms_summary'] = sanitize_textarea_field( wp_unslash( $_POST['llms_summary'] ?? '' ) );
+			$s['llms_types']   = weavit_llms_sanitize_types( wp_unslash( $_POST['llms_types'] ?? array() ) );
+			break;
 		case 'sitemap':
 			$public             = array_keys( get_post_types( array( 'public' => true ) ) );
 			$picked             = array_map( 'sanitize_key', (array) wp_unslash( $_POST['sitemap_types'] ?? array() ) );
@@ -143,7 +151,7 @@ add_action( 'admin_post_weavit_seo_save', function () {
 	}
 	update_option( WEAVIT_SEO_OPTION, $s );
 
-	$tab = 'sitemap' === $section ? 'sitemap' : ( 'schema' === $section ? 'schema' : 'titles' );
+	$tab = in_array( $section, array( 'sitemap', 'schema', 'llms' ), true ) ? $section : 'titles';
 	wp_safe_redirect( add_query_arg( array( 'page' => 'bootg-seo', 'tab' => $tab, 'saved' => $section ), admin_url( 'admin.php' ) ) );
 	exit;
 } );
