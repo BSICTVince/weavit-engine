@@ -133,6 +133,7 @@ function weavit_llms_content() {
 	$front    = (int) get_option( 'page_on_front' );
 	$excluded = array_filter( array( $front, (int) get_option( 'page_for_posts' ), (int) get_option( 'wp_page_for_privacy_policy' ) ) );
 	$sections = array();
+	$optional = array();
 	foreach ( weavit_llms_types() as $type => $cfg ) {
 		if ( empty( $cfg['on'] ) ) {
 			continue;
@@ -143,8 +144,11 @@ function weavit_llms_content() {
 		} elseif ( 'page' === $type ) {
 			$args = array( 'post__not_in' => $excluded );
 		}
-		$found = weavit_llms_posts( $type, max( 1, (int) $cfg['limit'] ), $args );
-		if ( $found ) {
+		$limit = (int) $cfg['limit'];
+		$found = weavit_llms_posts( $type, $limit > 0 ? $limit : -1, $args ); // 0 = all.
+		if ( $found && ! empty( $cfg['optional'] ) ) {
+			$optional[ $cfg['label'] ] = $found;
+		} elseif ( $found ) {
 			$sections[ $cfg['label'] ] = $found;
 		}
 	}
@@ -155,9 +159,46 @@ function weavit_llms_content() {
 		}
 		$out[] = '';
 	}
+	if ( $optional ) {
+		$out[] = '## Optional';
+		foreach ( $optional as $title => $items ) {
+			$out[] = '### ' . $title;
+			foreach ( $items as $item ) {
+				$out[] = weavit_llms_item( $item );
+			}
+			$out[] = '';
+		}
+	}
 
 	return implode( "\n", $out );
 }
+
+/**
+ * /llms.txt is rebuilt only when something it depends on changes (a post is saved, trashed or
+ * deleted, or the SEO / Site Options / site title settings are saved), with a 12-hour backstop.
+ * That keeps a very large blog from being re-queried on every crawler visit.
+ */
+function weavit_llms_cached_content() {
+	$cached = get_transient( 'weavit_llms_txt' );
+	if ( is_string( $cached ) && '' !== $cached ) {
+		return $cached;
+	}
+	$content = weavit_llms_content();
+	set_transient( 'weavit_llms_txt', $content, 12 * HOUR_IN_SECONDS );
+	return $content;
+}
+
+function weavit_llms_flush_cache() {
+	delete_transient( 'weavit_llms_txt' );
+}
+add_action( 'save_post', 'weavit_llms_flush_cache' );
+add_action( 'deleted_post', 'weavit_llms_flush_cache' );
+add_action( 'trashed_post', 'weavit_llms_flush_cache' );
+add_action( 'update_option_' . WEAVIT_SEO_OPTION, 'weavit_llms_flush_cache' );
+add_action( 'update_option_' . BOOTG_OPTION, 'weavit_llms_flush_cache' );
+add_action( 'update_option_blogname', 'weavit_llms_flush_cache' );
+add_action( 'update_option_blogdescription', 'weavit_llms_flush_cache' );
+add_action( 'update_option_page_on_front', 'weavit_llms_flush_cache' );
 
 add_action( 'template_redirect', function () {
 	if ( ! weavit_llms_on() ) {
@@ -171,7 +212,7 @@ add_action( 'template_redirect', function () {
 	status_header( 200 );
 	header( 'Content-Type: text/plain; charset=utf-8' );
 	header( 'Cache-Control: public, max-age=3600' );
-	echo weavit_llms_content(); // phpcs:ignore WordPress.Security.EscapeOutput
+	echo weavit_llms_cached_content(); // phpcs:ignore WordPress.Security.EscapeOutput
 	exit;
 }, 0 );
 
@@ -189,9 +230,10 @@ function weavit_llms_types() {
 	foreach ( $types as $type ) {
 		$obj = get_post_type_object( $type );
 		$cfg = array(
-			'label' => 'post' === $type ? 'Latest articles' : $obj->labels->name,
-			'limit' => 'post' === $type ? 10 : ( 'page' === $type ? 60 : 50 ),
+			'label' => 'post' === $type ? 'Articles' : $obj->labels->name,
+			'limit' => 'post' === $type ? 100 : ( 'page' === $type ? 60 : 50 ),
 			'on'    => in_array( $type, $first, true ),
+			'optional' => 'post' === $type, // Listed under "## Optional" so AI tools can skip it when short on space.
 		);
 		if ( isset( $saved[ $type ] ) ) {
 			$cfg = array_merge( $cfg, array_intersect_key( (array) $saved[ $type ], $cfg ) );
@@ -207,9 +249,10 @@ function weavit_llms_sanitize_types( $input ) {
 	foreach ( array_keys( weavit_llms_types() ) as $type ) {
 		$row = (array) ( $input[ $type ] ?? array() );
 		$out[ $type ] = array(
-			'on'    => empty( $row['on'] ) ? 0 : 1,
-			'label' => sanitize_text_field( $row['label'] ?? '' ),
-			'limit' => min( 200, max( 1, (int) ( $row['limit'] ?? 50 ) ) ),
+			'on'       => empty( $row['on'] ) ? 0 : 1,
+			'optional' => empty( $row['optional'] ) ? 0 : 1,
+			'label'    => sanitize_text_field( $row['label'] ?? '' ),
+			'limit'    => max( 0, (int) ( $row['limit'] ?? 50 ) ), // 0 = no limit (list everything).
 		);
 		if ( '' === $out[ $type ]['label'] ) {
 			unset( $out[ $type ]['label'] );
@@ -429,16 +472,17 @@ function weavit_seo_render_llms_tab() {
 			<tr><th><label for="llms_summary">Business summary</label></th><td><textarea id="llms_summary" name="llms_summary" rows="4" class="large-text" placeholder="Optional: who you are, who you help and what you do, in two or three sentences."><?php echo esc_textarea( $s['llms_summary'] ); ?></textarea><p class="description">Shown at the top of the file. The name, phone, email, areas served, profile links and page lists come from your other settings.</p></td></tr>
 		</table>
 		<h3>Templates by content type</h3>
-		<p class="description" style="max-width:780px;">Choose which kinds of content are listed in /llms.txt and under what heading. Every listed page also gets its own Markdown copy (for example <code>/contact.md</code>). The homepage's copy is <code>/index.md</code>.</p>
+		<p class="description" style="max-width:780px;">Choose which kinds of content are listed in /llms.txt and under what heading. Tick <strong>Optional</strong> for content AI tools may skip when short on space (such as a long blog archive); it is grouped under an "Optional" heading. Every listed page also gets its own Markdown copy (for example <code>/contact.md</code>). The homepage's copy is <code>/index.md</code>.</p>
 		<table class="widefat striped" style="max-width:780px;margin-bottom:16px;">
-			<thead><tr><th>Include</th><th>Content type</th><th>Heading in the file</th><th>Max items</th></tr></thead>
+			<thead><tr><th>Include</th><th>Content type</th><th>Heading in the file</th><th>Max items <span class="description">(0 = all)</span></th><th>Optional</th></tr></thead>
 			<tbody>
 			<?php foreach ( weavit_llms_types() as $type => $cfg ) : $obj = get_post_type_object( $type ); ?>
 				<tr>
 					<td><input type="checkbox" name="llms_types[<?php echo esc_attr( $type ); ?>][on]" value="1" <?php checked( $cfg['on'] ); ?>></td>
 					<td><?php echo esc_html( $obj->labels->name ); ?></td>
 					<td><input type="text" class="regular-text" name="llms_types[<?php echo esc_attr( $type ); ?>][label]" value="<?php echo esc_attr( $cfg['label'] ); ?>"></td>
-					<td><input type="number" class="small-text" min="1" max="200" name="llms_types[<?php echo esc_attr( $type ); ?>][limit]" value="<?php echo esc_attr( $cfg['limit'] ); ?>"></td>
+					<td><input type="number" class="small-text" min="0" name="llms_types[<?php echo esc_attr( $type ); ?>][limit]" value="<?php echo esc_attr( $cfg['limit'] ); ?>"></td>
+					<td><input type="checkbox" name="llms_types[<?php echo esc_attr( $type ); ?>][optional]" value="1" <?php checked( ! empty( $cfg['optional'] ) ); ?>></td>
 				</tr>
 			<?php endforeach; ?>
 			</tbody>
