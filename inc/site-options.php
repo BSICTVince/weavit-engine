@@ -209,7 +209,8 @@ function bootg_render_general_options_tab() {
 			</tr>
 			<tr>
 				<th><label for="address">Address</label></th>
-				<td><input type="text" id="address" name="<?php echo esc_attr( BOOTG_OPTION ); ?>[address]" value="<?php echo esc_attr( $o['address'] ); ?>" class="regular-text"></td>
+				<td><input type="text" id="address" name="<?php echo esc_attr( BOOTG_OPTION ); ?>[address]" value="<?php echo esc_attr( $o['address'] ); ?>" class="regular-text" placeholder="Leave blank to use the address from SEO Tools &rarr; Schema">
+					<p class="description">Shown in the footer and on the Contact page. Leave blank and it is built from the street, suburb, state and postcode in SEO Tools &rarr; Schema, so it always matches your structured data. Match your Google Business Profile exactly.</p></td>
 			</tr>
 			<tr>
 				<th><label for="map_query">Contact page map</label></th>

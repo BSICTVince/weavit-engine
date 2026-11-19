@@ -37,6 +37,33 @@ function weavit_schema_phone() {
 	return (string) apply_filters( 'weavit_schema_phone', $phone );
 }
 
+/**
+ * The business address as one line, for the footer and Contact page. Site Options > Address wins when
+ * filled in; otherwise it is built from SEO Tools > Schema (street, suburb, state, postcode), so the
+ * visible address and the structured data cannot drift apart. Format: "25A Dorothy St, Gosnells WA 6110".
+ */
+function weavit_business_address() {
+	$custom = trim( (string) bootg_get_option( 'address' ) );
+	if ( '' === $custom ) {
+		$s      = weavit_seo_settings();
+		$place  = trim( implode( ' ', array_filter( array( trim( $s['locality'] ), trim( $s['region'] ), trim( $s['postcode'] ) ) ) ) );
+		$custom = implode( ', ', array_filter( array( trim( $s['street'] ), $place ) ) );
+	}
+	return (string) apply_filters( 'weavit_business_address', $custom );
+}
+
+/** Where the address should link: the Google Business Profile / map link from SEO Tools > Schema, else a map search. */
+function weavit_business_map_url() {
+	$s = weavit_seo_settings();
+	foreach ( array( 'map_url', 'gbp_url' ) as $key ) {
+		if ( ! empty( $s[ $key ] ) ) {
+			return $s[ $key ];
+		}
+	}
+	$address = weavit_business_address();
+	return $address ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $address ) : '';
+}
+
 function weavit_schema_lines( $text ) {
 	return array_values( array_filter( array_map( 'trim', preg_split( '/\R/', (string) $text ) ) ) );
 }
