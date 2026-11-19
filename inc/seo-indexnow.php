@@ -25,7 +25,12 @@ define( 'WEAVIT_INDEXNOW_LOG_OPTION', 'weavit_indexnow_log' );
 
 /** IndexNow keys are 8–128 characters of a-z, A-Z, 0-9 and dashes. */
 function weavit_indexnow_valid_key( $key ) {
-	return is_string( $key ) && (bool) preg_match( '/^[A-Za-z0-9-]{8,128}$/', $key );
+	return is_string( $key ) && (bool) preg_match( '/^[A-Za-z0-9-]{8,128}\z/', $key );
+}
+
+/** Tidy a pasted key: trim it and drop a ".txt" if the file name was copied instead of the key. */
+function weavit_indexnow_clean_key( $raw ) {
+	return preg_replace( '/\.txt$/i', '', trim( (string) $raw ) );
 }
 
 function weavit_indexnow_generate_key() {
@@ -57,9 +62,9 @@ function weavit_indexnow_blocker() {
 	}
 	$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 	$env  = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production';
-	$local = 'localhost' === $host || 'local' === $env || (bool) preg_match( '/\.(local|test|localhost)$/i', $host );
+	$local = 'localhost' === $host || in_array( $env, array( 'local', 'development', 'staging' ), true ) || (bool) preg_match( '/\.(local|test|localhost)$/i', $host );
 	if ( $local && ! apply_filters( 'weavit_indexnow_allow_local', false ) ) {
-		return 'This is a local site (' . $host . '), so nothing is sent. Search engines cannot reach it.';
+		return 'This looks like a local, development or staging site (' . $host . '), so nothing is sent.';
 	}
 	return '';
 }
@@ -69,12 +74,12 @@ function weavit_indexnow_blocker() {
  * ------------------------------------------------------------------- */
 
 add_action( 'template_redirect', function () {
-	if ( ! weavit_indexnow_enabled() ) {
-		return;
+	$got = untrailingslashit( (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+	if ( '.txt' !== substr( $got, -4 ) || ! weavit_indexnow_enabled() ) {
+		return; // Cheap exit: only .txt requests ever need the key looked up.
 	}
 	$key  = weavit_indexnow_key();
 	$want = untrailingslashit( (string) wp_parse_url( home_url( '/' . $key . '.txt' ), PHP_URL_PATH ) );
-	$got  = untrailingslashit( (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 	if ( $got !== $want ) {
 		return;
 	}
@@ -193,6 +198,9 @@ function weavit_indexnow_remember_url( $post_id, $url = null ) {
 }
 
 function weavit_indexnow_remember_live( $post_id ) {
+	if ( ! weavit_indexnow_enabled() ) {
+		return;
+	}
 	$post = get_post( $post_id );
 	if ( $post && 'publish' === $post->post_status && in_array( $post->post_type, weavit_indexnow_post_types(), true ) ) {
 		// WordPress renames a trashed post's slug to "…__trashed" before our hook runs; undo that.
@@ -201,7 +209,15 @@ function weavit_indexnow_remember_live( $post_id ) {
 }
 add_action( 'pre_post_update', 'weavit_indexnow_remember_live' );
 add_action( 'wp_trash_post', 'weavit_indexnow_remember_live' );
-add_action( 'before_delete_post', 'weavit_indexnow_remember_live' );
+
+// Deleting a live post for good skips the status change, so report it here.
+add_action( 'before_delete_post', function ( $post_id ) {
+	weavit_indexnow_remember_live( $post_id );
+	$url = weavit_indexnow_remember_url( $post_id );
+	if ( $url ) {
+		weavit_indexnow_queue( $url );
+	}
+} );
 
 add_action( 'transition_post_status', function ( $new, $old, $post ) {
 	if ( ! weavit_indexnow_enabled() || wp_is_post_revision( $post ) || wp_is_post_autosave( $post ) ) {
@@ -235,6 +251,9 @@ add_action( 'transition_post_status', function ( $new, $old, $post ) {
 add_action( 'shutdown', function () {
 	$queue = weavit_indexnow_queue();
 	if ( $queue && weavit_indexnow_enabled() ) {
+		if ( function_exists( 'fastcgi_finish_request' ) ) {
+			fastcgi_finish_request(); // Answer the editor first; Bing's reply can take a few seconds.
+		}
 		weavit_indexnow_submit( array_keys( $queue ), 'auto' );
 	}
 } );
@@ -291,7 +310,7 @@ add_action( 'admin_post_weavit_indexnow_all', function () {
 				array( 'key' => 'seo_noindex', 'value' => array( '', '0' ), 'compare' => 'IN' ),
 			),
 		) );
-		$urls = array_map( 'get_permalink', $ids );
+		$urls = array_merge( array( home_url( '/' ) ), array_map( 'get_permalink', $ids ) );
 		$result = weavit_indexnow_submit( $urls, 'submit all' );
 	}
 	weavit_indexnow_redirect_result( $result, bootg_seo_tab_url( 'indexnow' ) );
@@ -302,7 +321,7 @@ add_action( 'admin_post_weavit_indexnow_key', function () {
 		wp_die( 'Not allowed.' );
 	}
 	check_admin_referer( 'weavit_indexnow_key' );
-	$new = isset( $_POST['regenerate'] ) ? weavit_indexnow_generate_key() : trim( sanitize_text_field( wp_unslash( $_POST['indexnow_key'] ?? '' ) ) );
+	$new = isset( $_POST['regenerate'] ) ? weavit_indexnow_generate_key() : weavit_indexnow_clean_key( sanitize_text_field( wp_unslash( $_POST['indexnow_key'] ?? '' ) ) );
 	if ( weavit_indexnow_valid_key( $new ) ) {
 		update_option( WEAVIT_INDEXNOW_KEY_OPTION, $new, false );
 		$result = array( 'code' => -1, 'message' => 'Key saved. The key file now lives at ' . weavit_indexnow_key_url(), 'count' => 0 );
@@ -355,7 +374,7 @@ function weavit_seo_render_indexnow_tab() {
 		<input type="hidden" name="action" value="weavit_indexnow_key">
 		<table class="form-table" role="presentation">
 			<tr><th><label for="indexnow_key">Key</label></th><td>
-				<input type="text" id="indexnow_key" name="indexnow_key" class="large-text code" value="<?php echo esc_attr( $key ); ?>" maxlength="128" pattern="[A-Za-z0-9\-]{8,128}">
+				<input type="text" id="indexnow_key" name="indexnow_key" class="large-text code" value="<?php echo esc_attr( $key ); ?>" maxlength="132" autocomplete="off" spellcheck="false">
 				<p class="description">Paste the key from Bing Webmaster Tools, or keep the generated one. 8–128 letters, numbers or dashes.</p>
 			</td></tr>
 			<tr><th>Key file</th><td>
